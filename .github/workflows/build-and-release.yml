@@ -1,0 +1,92 @@
+name: Build and Auto-Release Mistus Copy Pasta
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Windows Installer & Release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Install Inno Setup Compiler
+        run: |
+          choco install innosetup -y --no-progress
+          echo "C:\Program Files (x86)\Inno Setup 6" >> $env:GITHUB_PATH
+
+      - name: Extract Application Version
+        id: get_version
+        run: |
+          $ver = python -c "from app.version import APP_VERSION; print(APP_VERSION)"
+          echo "APP_VERSION=$ver" >> $env:GITHUB_ENV
+          echo "Detected version: $ver"
+
+      - name: Build Standalone Binaries with PyInstaller
+        run: |
+          python -m PyInstaller CopyPasta.spec --noconfirm
+
+      - name: Compile Windows Setup Installer with Inno Setup
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+
+      - name: Upload Installer as Workflow Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mistus_Copy_Pasta_Setup_v${{ env.APP_VERSION }}
+          path: Mistus_Copy_Pasta_Setup_*.exe
+          if-no-files-found: error
+
+      - name: Publish GitHub Release with Installer
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.APP_VERSION }}
+          name: "Mistus Copy Pasta v${{ env.APP_VERSION }}"
+          body: |
+            ## 🚀 Mistus Copy Pasta v${{ env.APP_VERSION }}
+
+            Next-Gen Windows Clipboard Manager & 2FA Authenticator.
+
+            ### ✨ Key Features in this Release:
+            - 🟢 **ZeBeyond Cyber-Emerald Midnight Theme**: Ultra-sleek obsidian & neon mint/emerald interface.
+            - 🎯 **Input Field Quick Paste Dot**: Subtle dot appears at active text boxes across Windows.
+            - ⚡ **Hover Auto-Expansion**: Hover over the dot menu to instantly reveal your recent pastable clips without clicking.
+            - ⌨️ **Global Caret Hotkey (`Alt + V` / `Ctrl + Alt + V`)**: Press `Alt + V` anytime to summon the quick paste menu right at your text cursor.
+            - 📌 **10 Pinned Slots**: Permanent top snippets with dedicated numbered slot badges (`#1` to `#10`).
+            - 🔑 **Built-in 2FA TOTP Generator**: Real-time auto-detected codes secured with Windows DPAPI encryption.
+            - 🚀 **Desktop Floating Bar**: Draggable translucent acrylic pill showing live 2FA and recent clips.
+            - 🗖 **Detailed Flyout Window**: Modern Fluent clipboard history with live search.
+
+            ### 📦 Download & Install:
+            Download the installer below:
+            - **`Mistus_Copy_Pasta_Setup_v${{ env.APP_VERSION }}.exe`**
+          files: |
+            Mistus_Copy_Pasta_Setup_*.exe
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

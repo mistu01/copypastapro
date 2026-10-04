@@ -60,25 +60,34 @@
 
 ## 🚀 Installation & Running
 
-### 📦 Single Unified Windows Setup Installer (`Mistus_Copy_Pasta_Setup_v1.3.1.exe`)
-To install Mistus Copy Pasta on your system with a full Windows Setup wizard:
-- **Run [`Mistus_Copy_Pasta_Setup_v1.3.1.exe`](file:///c:/Users/Admin/Desktop/CopyPasta/Mistus_Copy_Pasta_Setup_v1.3.1.exe)** directly in the project root.
-- All duplicate/legacy setup files have been consolidated into this single installer.
-- Features of the setup wizard:
-  1. **Welcome Screen & Branding**: Professional wizard sidebar graphic and branding.
-  2. **License Agreement & Software Info**: Terms and feature overview.
-  3. **Custom Installation Directory**: Defaults to `C:\Program Files\Mistus Copy Pasta` (with full Browse support).
-  4. **Start Menu Group**: Creates a Start Menu folder with app and documentation links.
-  5. **Desktop & Startup Shortcuts**: Checkboxes to create a desktop shortcut and auto-start Mistus Copy Pasta on Windows boot.
-  6. **Windows Run (`Win + R`) Command**: Registers `MistusCopyPasta.exe` so you can launch it from the Windows Run prompt.
-  7. **Complete Windows Uninstaller**: Registered in Windows Settings $\rightarrow$ Installed Apps with full removal cleanup.
+### 📦 Windows Setup Installer (Recommended)
+Download the latest Windows Setup wizard installer directly from GitHub Releases:
+- 👉 **[Download Mistus Copy Pasta Latest Release](https://github.com/mistu01/copypastapro/releases)**
 
-### 🏃 Portable Executable (`.exe`)
-If you want to run it without installing:
-- Launch [`dist\MistusCopyPasta\MistusCopyPasta.exe`](file:///c:/Users/Admin/Desktop/CopyPasta/dist/MistusCopyPasta/MistusCopyPasta.exe) directly.
+Features of the setup wizard:
+1. **Welcome Screen & Branding**: Professional wizard sidebar graphic and branding.
+2. **License Agreement & Software Info**: Terms and feature overview.
+3. **Custom Installation Directory**: Defaults to `C:\Program Files\Mistus Copy Pasta` (with full Browse support).
+4. **Start Menu Group**: Creates a Start Menu folder with app and documentation links.
+5. **Desktop & Startup Shortcuts**: Checkboxes to create a desktop shortcut and auto-start Mistus Copy Pasta on Windows boot.
+6. **Windows Run (`Win + R`) Command**: Registers `MistusCopyPasta.exe` so you can launch it from the Windows Run prompt.
+7. **Complete Windows Uninstaller**: Registered in Windows Settings $\rightarrow$ Installed Apps with full removal cleanup.
 
-### 🐍 Developer / Script Mode
-- Double-click [`run.bat`](file:///c:/Users/Admin/Desktop/CopyPasta/run.bat) or [`run_silent.vbs`](file:///c:/Users/Admin/Desktop/CopyPasta/run_silent.vbs).
+### 🤖 Automated GitHub Actions Builds
+Binaries and installers are compiled automatically in the cloud via GitHub Actions on every push and release tag:
+- Builds a standalone executable using **PyInstaller**.
+- Packages the installer with **Inno Setup**.
+- Automatically attaches the compiled installer to the **GitHub Release**.
+
+### 🐍 Developer / Source Code Mode
+To run from source:
+```bash
+git clone https://github.com/mistu01/copypastapro.git
+cd copypastapro
+pip install -r requirements.txt
+python main.py
+```
+Or simply double-click [`run.bat`](file:///c:/Users/Admin/Desktop/CopyPasta/run.bat) or [`run_silent.vbs`](file:///c:/Users/Admin/Desktop/CopyPasta/run_silent.vbs).
 
 ---
 
