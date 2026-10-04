@@ -31,38 +31,9 @@ from app.paste_helper import PasteHelper
 
 user32 = ctypes.windll.user32
 kernel32 = ctypes.windll.kernel32
-oleacc = ctypes.windll.oleacc
-
-WH_MOUSE_LL = 14
-WM_LBUTTONUP = 0x0202
-WM_QUIT = 0x0012
-
-ROLE_SYSTEM_TEXT = 42
-ROLE_SYSTEM_COMBOBOX = 46
 
 class POINT(ctypes.Structure):
     _fields_ = [("x", wintypes.LONG), ("y", wintypes.LONG)]
-
-class MSLLHOOKSTRUCT(ctypes.Structure):
-    _fields_ = [
-        ("pt", POINT),
-        ("mouseData", wintypes.DWORD),
-        ("flags", wintypes.DWORD),
-        ("time", wintypes.DWORD),
-        ("dwExtraInfo", ctypes.c_size_t),
-    ]
-
-HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
-
-class VARIANT(ctypes.Structure):
-    _fields_ = [
-        ("vt", wintypes.WORD),
-        ("wReserved1", wintypes.WORD),
-        ("wReserved2", wintypes.WORD),
-        ("wReserved3", wintypes.WORD),
-        ("val", ctypes.c_int64),
-        ("val2", ctypes.c_int64),
-    ]
 
 class GUITHREADINFO(ctypes.Structure):
     _fields_ = [
@@ -81,57 +52,48 @@ GetGUIThreadInfo = user32.GetGUIThreadInfo
 GetGUIThreadInfo.argtypes = [wintypes.DWORD, ctypes.POINTER(GUITHREADINFO)]
 GetGUIThreadInfo.restype = wintypes.BOOL
 
-class GUID(ctypes.Structure):
-    _fields_ = [
-        ("Data1", wintypes.DWORD),
-        ("Data2", wintypes.WORD),
-        ("Data3", wintypes.WORD),
-        ("Data4", ctypes.c_byte * 8),
-    ]
-
-IID_IACCESSIBLE = GUID(
-    0x618736E0, 0x3C3D, 0x11CF,
-    (ctypes.c_byte * 8)(0x81, 0x0C, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71)
+WINEVENTPROC = ctypes.WINFUNCTYPE(
+    None,
+    wintypes.HANDLE,
+    wintypes.DWORD,
+    wintypes.HWND,
+    wintypes.LONG,
+    wintypes.LONG,
+    wintypes.DWORD,
+    wintypes.DWORD
 )
 
-OBJID_CLIENT = 0xFFFFFFFC & 0xFFFFFFFF
 
-AccessibleObjectFromWindow = oleacc.AccessibleObjectFromWindow
-AccessibleObjectFromWindow.argtypes = [
-    wintypes.HWND,
-    wintypes.DWORD,
-    ctypes.POINTER(GUID),
-    ctypes.POINTER(ctypes.c_void_p),
-]
-AccessibleObjectFromWindow.restype = ctypes.c_long
-
-
-def inspect_input_at_point(x: int, y: int, our_pid: int) -> Tuple[bool, Optional[Tuple[int, int, int, int]], Optional[int]]:
+def inspect_focused_window(hwnd: int, our_pid: int) -> Tuple[bool, Optional[Tuple[int, int, int, int]]]:
     """
-    Determines if the screen point (x, y) belongs to an editable text input box.
-    Returns (is_input, (left, top, width, height), hwnd).
+    Safely inspects if the focused hwnd is an editable text field or has an active text caret.
+    Returns (is_input, (x, y, w, h)).
+    Purely Win32 non-blocking API calls - never blocks or freezes OS input.
     """
     try:
-        pt = POINT(x, y)
-        hwnd = user32.WindowFromPoint(pt)
-        if not hwnd:
-            return False, None, None
+        if not hwnd or not user32.IsWindow(hwnd):
+            return False, None
 
-        # Check PID to ignore our own CopyPasta windows
+        # Ignore our own application windows
         pid = wintypes.DWORD()
         user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
         if pid.value == our_pid:
-            return False, None, None
+            return False, None
 
-        # Check child window under point if hwnd is a parent container
-        child_hwnd = user32.RealChildWindowFromPoint(hwnd, pt)
-        if child_hwnd and child_hwnd != hwnd:
-            c_pid = wintypes.DWORD()
-            user32.GetWindowThreadProcessId(child_hwnd, ctypes.byref(c_pid))
-            if c_pid.value != our_pid:
-                hwnd = child_hwnd
+        # 1. Check Caret via GetGUIThreadInfo (gives exact text cursor location)
+        gui_info = GUITHREADINFO()
+        gui_info.cbSize = ctypes.sizeof(GUITHREADINFO)
+        tid = user32.GetWindowThreadProcessId(hwnd, None)
+        if GetGUIThreadInfo(tid, ctypes.byref(gui_info)):
+            if gui_info.hwndCaret and user32.IsWindow(gui_info.hwndCaret):
+                rc = gui_info.rcCaret
+                pt = POINT(rc.right, rc.top)
+                user32.ClientToScreen(gui_info.hwndCaret, ctypes.byref(pt))
+                w = max(4, rc.right - rc.left)
+                h = max(16, rc.bottom - rc.top)
+                return True, (pt.x, pt.y, w, h)
 
-        # 1. Check Win32 Class Name
+        # 2. Check Win32 Class Name
         buf = ctypes.create_unicode_buffer(256)
         user32.GetClassNameW(hwnd, buf, 256)
         class_name = buf.value.lower()
@@ -140,141 +102,62 @@ def inspect_input_at_point(x: int, y: int, our_pid: int) -> Tuple[bool, Optional
             "edit", "richedit", "richedit20w", "richedit50w", "richedit60w", "scintilla",
             "textbox", "search", "input", "directuihwnd", "consolewindowclass",
             "windows.ui.core.corewindow", "applicationframewindow",
-            "windows.ui.input.inputsite.windowclass", "term",
-            "qt6qwindowicon", "qt5qwindowicon"
+            "windows.ui.input.inputsite.windowclass", "term"
         )
-        is_known_class = any(k in class_name for k in known_edit_classes)
-        if is_known_class:
+        is_known_edit = any(k in class_name for k in known_edit_classes)
+
+        if is_known_edit:
             rect_buf = wintypes.RECT()
             if user32.GetWindowRect(hwnd, ctypes.byref(rect_buf)):
-                rect = (
-                    rect_buf.left,
-                    rect_buf.top,
-                    rect_buf.right - rect_buf.left,
-                    rect_buf.bottom - rect_buf.top
-                )
-                return True, rect, hwnd
-            return True, None, hwnd
-
-        # 2. Check Caret via GetGUIThreadInfo for target thread or active foreground window
-        gui_info = GUITHREADINFO()
-        gui_info.cbSize = ctypes.sizeof(GUITHREADINFO)
-        tid = user32.GetWindowThreadProcessId(hwnd, None)
-        if GetGUIThreadInfo(tid, ctypes.byref(gui_info)):
-            if gui_info.hwndCaret:
-                rc = gui_info.rcCaret
-                pt_caret = POINT(rc.left, rc.top)
-                user32.ClientToScreen(gui_info.hwndCaret, ctypes.byref(pt_caret))
-                rect = (pt_caret.x, pt_caret.y, rc.right - rc.left, rc.bottom - rc.top)
-                return True, rect, hwnd
-
-        fore_hwnd = user32.GetForegroundWindow()
-        if fore_hwnd and fore_hwnd != hwnd:
-            fore_tid = user32.GetWindowThreadProcessId(fore_hwnd, None)
-            if GetGUIThreadInfo(fore_tid, ctypes.byref(gui_info)):
-                if gui_info.hwndCaret:
-                    rc = gui_info.rcCaret
-                    pt_caret = POINT(rc.left, rc.top)
-                    user32.ClientToScreen(gui_info.hwndCaret, ctypes.byref(pt_caret))
-                    rect = (pt_caret.x, pt_caret.y, rc.right - rc.left, rc.bottom - rc.top)
-                    return True, rect, fore_hwnd
-
-        # 3. Check MSAA via AccessibleObjectFromWindow
-        pacc = ctypes.c_void_p()
-        hr = AccessibleObjectFromWindow(hwnd, OBJID_CLIENT, ctypes.byref(IID_IACCESSIBLE), ctypes.byref(pacc))
-        if hr == 0 and pacc.value:
-            try:
-                vtable_ptr = ctypes.cast(pacc, ctypes.POINTER(ctypes.c_void_p))[0]
-                vtable = ctypes.cast(vtable_ptr, ctypes.POINTER(ctypes.c_void_p))
-                var_child = VARIANT(3, 0, 0, 0, 0, 0)
-                var_role = VARIANT()
-                get_acc_role = ctypes.WINFUNCTYPE(
-                    ctypes.c_long, ctypes.c_void_p, VARIANT, ctypes.POINTER(VARIANT)
-                )(vtable[13])
-                hr_role = get_acc_role(pacc.value, var_child, ctypes.byref(var_role))
-                role = (var_role.val & 0xFFFFFFFF) if hr_role == 0 else 0
-                release_func = ctypes.WINFUNCTYPE(ctypes.c_ulong, ctypes.c_void_p)(vtable[2])
-                release_func(pacc.value)
-                if role in (ROLE_SYSTEM_TEXT, ROLE_SYSTEM_COMBOBOX):
-                    rect_buf = wintypes.RECT()
-                    rect = None
-                    if user32.GetWindowRect(hwnd, ctypes.byref(rect_buf)):
-                        rect = (
-                            rect_buf.left,
-                            rect_buf.top,
-                            rect_buf.right - rect_buf.left,
-                            rect_buf.bottom - rect_buf.top
-                        )
-                    return True, rect, hwnd
-            except Exception:
-                pass
+                w = rect_buf.right - rect_buf.left
+                h = rect_buf.bottom - rect_buf.top
+                if 20 < w < 2500 and 15 < h < 600:
+                    return True, (rect_buf.left, rect_buf.top, w, h)
 
     except Exception:
         pass
 
-    return False, None, None
+    return False, None
 
 
-class LowLevelMouseHook(QObject):
-    """Low-level Windows mouse hook running in a dedicated thread."""
-    mouse_clicked = Signal(int, int)
+class WinEventFocusListener(QObject):
+    """
+    Asynchronous Windows Event Hook (SetWinEventHook) listener for EVENT_OBJECT_FOCUS.
+    Runs completely asynchronously (WINEVENT_OUTOFCONTEXT) inside Qt's message loop.
+    Never blocks or interferes with OS mouse or keyboard events.
+    """
+    focus_changed = Signal(int)
 
     def __init__(self):
         super().__init__()
         self._hook_id = None
-        self._thread = None
-        self._thread_id = None
-        self._running = False
-        self._hook_proc_ref = None
+        self._proc_ref = WINEVENTPROC(self._event_proc)
 
     def start(self):
-        if self._running:
+        if self._hook_id:
             return
-        self._running = True
-        self._thread = threading.Thread(target=self._run_hook, daemon=True)
-        self._thread.start()
-
-    def stop(self):
-        self._running = False
-        if self._thread_id:
-            user32.PostThreadMessageW(self._thread_id, WM_QUIT, 0, 0)
-        if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=0.5)
-
-    def _mouse_proc(self, nCode, wParam, lParam):
-        if nCode >= 0 and wParam == WM_LBUTTONUP:
-            try:
-                ms = MSLLHOOKSTRUCT.from_address(lParam)
-                self.mouse_clicked.emit(ms.pt.x, ms.pt.y)
-            except Exception:
-                pass
-        return user32.CallNextHookEx(self._hook_id, nCode, wParam, lParam)
-
-    def _run_hook(self):
-        self._thread_id = kernel32.GetCurrentThreadId()
-        self._hook_proc_ref = HOOKPROC(self._mouse_proc)
-        self._hook_id = user32.SetWindowsHookExW(
-            WH_MOUSE_LL,
-            self._hook_proc_ref,
+        # EVENT_OBJECT_FOCUS = 0x8005
+        # WINEVENT_OUTOFCONTEXT = 0x0000, WINEVENT_SKIPOWNPROCESS = 0x0002
+        self._hook_id = user32.SetWinEventHook(
+            0x8005,
+            0x8005,
             None,
-            0
+            self._proc_ref,
+            0,
+            0,
+            0x0002
         )
         if not self._hook_id:
-            err = kernel32.GetLastError()
-            print(f"[QuickDot] Failed to install low-level mouse hook! Error: {err}")
-            return
+            print("[QuickDot] Note: SetWinEventHook returned 0")
 
-        msg = wintypes.MSG()
-        while self._running:
-            res = user32.GetMessageW(ctypes.byref(msg), None, 0, 0)
-            if res <= 0:
-                break
-            user32.TranslateMessage(ctypes.byref(msg))
-            user32.DispatchMessageW(ctypes.byref(msg))
-
+    def stop(self):
         if self._hook_id:
-            user32.UnhookWindowsHookEx(self._hook_id)
+            user32.UnhookWinEvent(self._hook_id)
             self._hook_id = None
+
+    def _event_proc(self, hHook, event, hwnd, idObject, idChild, idEventThread, dwmsEventTime):
+        if hwnd:
+            self.focus_changed.emit(hwnd)
 
 
 class QuickDotWindow(QWidget):
@@ -618,7 +501,7 @@ class QuickPasteRow(QWidget):
 
 class InputAnchorManager(QObject):
     """
-    Coordinates global mouse clicks, caret position, and hotkey activation (Alt+V / Ctrl+Alt+V).
+    Coordinates focus change detection, caret position, and hotkey activation (Alt+V / Ctrl+Alt+V).
     Hovering on the dot auto-expands the pasteable entries row.
     """
     def __init__(self, db: Database, paste_helper: PasteHelper):
@@ -630,29 +513,77 @@ class InputAnchorManager(QObject):
         self.quick_dot = QuickDotWindow()
         self.quick_row = QuickPasteRow(db, paste_helper)
 
-        # Hook & Signals
-        self.mouse_hook = LowLevelMouseHook()
-        self.mouse_hook.mouse_clicked.connect(self._on_mouse_clicked)
+        # Focus listener & debouncer (purely asynchronous WinEvent hook)
+        self.focus_listener = WinEventFocusListener()
+        self.focus_listener.focus_changed.connect(self._on_focus_changed)
+
+        self._pending_hwnd = None
+        self._focus_timer = QTimer(self)
+        self._focus_timer.setInterval(80)
+        self._focus_timer.setSingleShot(True)
+        self._focus_timer.timeout.connect(self._process_focused_hwnd)
 
         # Hover on dot auto-expands recent entries without clicking!
         self.quick_dot.dot_hovered.connect(self._on_dot_activated)
         self.quick_dot.dot_clicked.connect(self._on_dot_activated)
 
-        # Start hook if enabled
+        # Start focus listener if enabled
         if self.db.get_bool_setting("quick_paste_dot_enabled", True):
-            self.mouse_hook.start()
+            self.focus_listener.start()
 
     def update_settings(self):
         enabled = self.db.get_bool_setting("quick_paste_dot_enabled", True)
         if enabled:
-            self.mouse_hook.start()
+            self.focus_listener.start()
         else:
-            self.mouse_hook.stop()
+            self.focus_listener.stop()
             self.quick_dot.hide()
             self.quick_row.hide()
 
+    def stop(self):
+        self.focus_listener.stop()
+        self.quick_dot.hide()
+        self.quick_row.hide()
+
+    def _on_focus_changed(self, hwnd: int):
+        self._pending_hwnd = hwnd
+        self._focus_timer.start()
+
+    def _process_focused_hwnd(self):
+        if not self.db.get_bool_setting("quick_paste_dot_enabled", True):
+            return
+
+        hwnd = self._pending_hwnd
+        if not hwnd:
+            return
+
+        is_input, rect = inspect_focused_window(hwnd, self.our_pid)
+        if is_input and rect:
+            x, y, w, h = rect
+            screen = QGuiApplication.primaryScreen().availableGeometry()
+            dot_w = self.quick_dot.width()
+            dot_h = self.quick_dot.height()
+
+            # If it's a caret coordinate (w <= 8), place just to the right of caret
+            if w <= 8:
+                target_x = x + 8
+                target_y = y
+            else:
+                # Place near right side of input field
+                target_x = x + w - dot_w - 4
+                target_y = y + (h - dot_h) // 2
+
+            # Clamp within screen bounds
+            target_x = max(screen.left() + 4, min(target_x, screen.right() - dot_w - 4))
+            target_y = max(screen.top() + 4, min(target_y, screen.bottom() - dot_h - 4))
+
+            self.quick_dot.show_at(QPoint(target_x, target_y), hwnd)
+        else:
+            if self.quick_dot.isVisible() and not self.quick_row.isVisible():
+                self.quick_dot.hide()
+
     def on_user_typing(self):
-        """Immediately hide the dot when the user begins typing so it never obstructs."""
+        """Dismiss floating dot when user is typing."""
         if self.quick_dot.isVisible() and not self.quick_row.isVisible():
             self.quick_dot.hide()
 
@@ -709,47 +640,6 @@ class InputAnchorManager(QObject):
         self.quick_dot.show_at(dot_pos, fore_hwnd)
         # Immediately auto-expand the pastable entries row above the caret!
         self._on_dot_activated(dot_pos, fore_hwnd)
-
-    def _on_mouse_clicked(self, x: int, y: int):
-        if not self.db.get_bool_setting("quick_paste_dot_enabled", True):
-            return
-
-        click_pt = QPoint(x, y)
-
-        # If user clicked inside our own quick dot or quick row, let Qt handle the interaction
-        if self.quick_dot.isVisible() and self.quick_dot.geometry().contains(click_pt):
-            return
-        if self.quick_row.isVisible() and self.quick_row.geometry().contains(click_pt):
-            return
-
-        # If quick row was open and clicked outside, dismiss it
-        if self.quick_row.isVisible():
-            self.quick_row.hide()
-
-        # Inspect if clicked area is an input field
-        is_input, rect, target_hwnd = inspect_input_at_point(x, y, self.our_pid)
-        if is_input:
-            screen = QGuiApplication.primaryScreen().availableGeometry()
-            dot_w = self.quick_dot.width()
-            dot_h = self.quick_dot.height()
-
-            if rect and rect[2] > 20 and 15 < rect[3] < 120:
-                # Place near the right edge inside the field or just beside cursor
-                target_x = min(rect[0] + rect[2] - dot_w - 4, max(rect[0] + 4, x + 14))
-                target_y = rect[1] + (rect[3] - dot_h) // 2
-            else:
-                target_x = x + 14
-                target_y = y - (dot_h // 2)
-
-            # Clamp within screen bounds
-            target_x = max(screen.left() + 4, min(target_x, screen.right() - dot_w - 4))
-            target_y = max(screen.top() + 4, min(target_y, screen.bottom() - dot_h - 4))
-
-            self.quick_dot.show_at(QPoint(target_x, target_y), target_hwnd)
-        else:
-            # Clicked outside an input field -> hide dot
-            if self.quick_dot.isVisible():
-                self.quick_dot.hide()
 
     def _on_dot_activated(self, dot_pos: QPoint, target_hwnd: Optional[int]):
         """Expands the pastable entries row right above the dot (triggered on hover or click)."""

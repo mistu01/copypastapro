@@ -87,7 +87,6 @@ class CopyPastaApp:
             custom_hotkey_enabled=self.db.get_bool_setting("custom_hotkey_enabled", True)
         )
         self.hotkey_listener.hotkey_triggered.connect(self._on_hotkey_triggered)
-        self.hotkey_listener.user_typing.connect(self.input_anchor_mgr.on_user_typing)
         self.hotkey_listener.start()
 
         # Wire Signals
@@ -253,7 +252,7 @@ class CopyPastaApp:
 
     def quit(self):
         self.hotkey_listener.stop()
-        self.input_anchor_mgr.mouse_hook.stop()
+        self.input_anchor_mgr.stop()
         self.tray.hide()
         self.app.quit()
 
