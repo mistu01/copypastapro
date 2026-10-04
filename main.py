@@ -21,7 +21,6 @@ from app.totp_manager import TOTPManager
 from app.hotkey import HotkeyListener
 from app.ui.detailed_window import DetailedWindow
 from app.ui.floating_bar import FloatingBar
-from app.ui.quick_dot import InputAnchorManager
 
 
 from app.icons import AppIcons
@@ -78,9 +77,6 @@ class CopyPastaApp:
         self.detailed_window = DetailedWindow(self.db, self.paste_helper)
         self.floating_bar = FloatingBar(self.db, self.paste_helper)
 
-        # Input Field Quick Paste Dot & Floating Row
-        self.input_anchor_mgr = InputAnchorManager(self.db, self.paste_helper)
-
         # Hotkey listener (Win+V and Ctrl+Shift+V)
         self.hotkey_listener = HotkeyListener(
             intercept_win_v=self.db.get_bool_setting("intercept_win_v", True),
@@ -91,7 +87,6 @@ class CopyPastaApp:
 
         # Wire Signals
         self.floating_bar.expand_requested.connect(self._on_expand_requested)
-        self.input_anchor_mgr.quick_row.expand_flyout_requested.connect(self.toggle_detailed_window)
         self.detailed_window.settings_changed.connect(self._on_settings_changed)
         self.detailed_window.pinned_changed.connect(self.floating_bar.refresh_chips)
 
@@ -133,9 +128,6 @@ class CopyPastaApp:
         act_open = tray_menu.addAction(AppIcons.clipboard(16, "#00f59b"), "Open Clipboard Manager (Win + V)")
         act_open.triggered.connect(self.toggle_detailed_window)
 
-        act_quick_dot = tray_menu.addAction(AppIcons.sparkles(16, "#00f59b"), "Quick Paste at Caret (Alt + V)")
-        act_quick_dot.triggered.connect(self.input_anchor_mgr.activate_at_caret_or_cursor)
-
         act_toggle_bar = tray_menu.addAction(AppIcons.expand(16, "#34d399"), "Toggle Floating Bar")
         act_toggle_bar.triggered.connect(self._toggle_floating_bar)
 
@@ -159,11 +151,7 @@ class CopyPastaApp:
             self.toggle_detailed_window()
 
     def _on_hotkey_triggered(self, key_name: str):
-        # Called when Win+V, Ctrl+Shift+V, or Alt+V is pressed
-        if key_name == "QuickDot":
-            self.input_anchor_mgr.activate_at_caret_or_cursor()
-        else:
-            self.toggle_detailed_window()
+        self.toggle_detailed_window()
 
     def toggle_detailed_window(self):
         if self.detailed_window.isVisible():
@@ -224,9 +212,6 @@ class CopyPastaApp:
             intercept_win_v=self.db.get_bool_setting("intercept_win_v", True),
             custom_hotkey_enabled=self.db.get_bool_setting("custom_hotkey_enabled", True)
         )
-        # Update input anchor manager (Quick Dot)
-        self.input_anchor_mgr.update_settings()
-
         # Update floating bar
         bar_enabled = self.db.get_bool_setting("floating_bar_enabled", True)
         if bar_enabled:
@@ -252,7 +237,6 @@ class CopyPastaApp:
 
     def quit(self):
         self.hotkey_listener.stop()
-        self.input_anchor_mgr.stop()
         self.tray.hide()
         self.app.quit()
 

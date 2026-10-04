@@ -70,6 +70,7 @@ class FloatingBar(QWidget):
     def _init_window(self):
         self.setObjectName("FloatingBarWidget")
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool | Qt.WindowDoesNotAcceptFocus)
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setStyleSheet(DARK_THEME_QSS)
 
@@ -82,8 +83,10 @@ class FloatingBar(QWidget):
                 user32 = ctypes.windll.user32
                 GWL_EXSTYLE = -20
                 WS_EX_NOACTIVATE = 0x08000000
-                ex_style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-                user32.SetWindowLongW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_NOACTIVATE)
+                GetWindowLong = getattr(user32, "GetWindowLongPtrW", user32.GetWindowLongW)
+                SetWindowLong = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
+                ex_style = GetWindowLong(hwnd, GWL_EXSTYLE)
+                SetWindowLong(hwnd, GWL_EXSTYLE, ex_style | WS_EX_NOACTIVATE)
             except Exception:
                 pass
 
@@ -301,7 +304,8 @@ class FloatingBar(QWidget):
             self.paste_helper.restore_focus_and_paste()
 
         self.item_clicked.emit(content)
-        self.refresh_chips()
+        # Avoid synchronous widget destruction during mouse event dispatch
+        QTimer.singleShot(600, self.refresh_chips)
 
     def _on_expand_clicked(self):
         self.expand_requested.emit()

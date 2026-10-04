@@ -109,14 +109,17 @@ class PasteHelper:
         ).start()
 
     def _do_restore_and_paste(self, target_hwnd: Optional[int]):
-        # Brief pause to allow the flyout to finish hiding
+        # Brief pause to allow the flyout to finish hiding if called from DetailedWindow
         time.sleep(0.04)
 
-        if target_hwnd and HAS_WIN32 and win32gui.IsWindow(target_hwnd):
-            self._force_window_to_foreground(target_hwnd)
+        current_fore = user32.GetForegroundWindow()
+        hwnd_to_use = target_hwnd or current_fore or self.last_foreground_hwnd
 
-        # Pause to let the target window activate and its input field receive focus
-        time.sleep(0.06)
+        # Only bring to foreground if target is not already the foreground window
+        if hwnd_to_use and HAS_WIN32 and win32gui.IsWindow(hwnd_to_use):
+            if current_fore != hwnd_to_use:
+                self._force_window_to_foreground(hwnd_to_use)
+                time.sleep(0.05)
 
         # Release any stuck modifiers and send Ctrl+V
         self._simulate_ctrl_v()
@@ -136,23 +139,13 @@ class PasteHelper:
             if target_pid:
                 user32.AllowSetForegroundWindow(target_pid)
 
-            # Restore if minimized
             if user32.IsIconic(target_hwnd):
                 user32.ShowWindow(target_hwnd, SW_RESTORE)
-            else:
-                user32.ShowWindow(target_hwnd, SW_SHOW)
 
-            # AttachThreadInput from the current foreground thread
             fore_hwnd = user32.GetForegroundWindow()
-            fore_thread = user32.GetWindowThreadProcessId(fore_hwnd, None) if fore_hwnd else 0
-            target_thread = user32.GetWindowThreadProcessId(target_hwnd, None)
-
-            if fore_thread and target_thread and fore_thread != target_thread:
-                user32.AttachThreadInput(fore_thread, target_thread, True)
-                user32.BringWindowToTop(target_hwnd)
-                user32.SetForegroundWindow(target_hwnd)
-                user32.AttachThreadInput(fore_thread, target_thread, False)
-            else:
+            if fore_hwnd != target_hwnd:
+                user32.keybd_event(VK_MENU, 0, 0, 0)
+                user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
                 user32.BringWindowToTop(target_hwnd)
                 user32.SetForegroundWindow(target_hwnd)
         except Exception as e:
@@ -162,7 +155,7 @@ class PasteHelper:
         """Send simulated Ctrl+V keystroke to insert clipboard contents into input field."""
         try:
             # Release modifier keys ONLY if they are physically held down
-            for vk in (VK_LWIN, VK_RWIN, VK_SHIFT, VK_CONTROL):
+            for vk in (VK_LWIN, VK_RWIN, VK_SHIFT, VK_CONTROL, VK_MENU):
                 if user32.GetAsyncKeyState(vk) & 0x8000:
                     user32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
 

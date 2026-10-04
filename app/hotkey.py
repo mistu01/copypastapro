@@ -114,6 +114,11 @@ class HotkeyListener(QObject):
         if nCode >= 0:
             try:
                 kb = KBDLLHOOKSTRUCT.from_address(lParam)
+
+                # Never intercept synthetic/injected keystrokes (allows PasteHelper Ctrl+V to pass through!)
+                if kb.flags & 0x01:
+                    return user32.CallNextHookEx(self.hook_id, nCode, wParam, lParam)
+
                 is_down = wParam in (WM_KEYDOWN, WM_SYSKEYDOWN)
                 is_up = wParam in (WM_KEYUP, WM_SYSKEYUP)
 
@@ -152,12 +157,6 @@ class HotkeyListener(QObject):
                             if is_down:
                                 self.hotkey_triggered.emit("Ctrl+Shift+V")
                             return 1
-
-                    # 3. Alt + V or Ctrl + Alt + V -> Activate Input Box Quick Paste Dot & Row
-                    if alt_active and not win_active and not shift_active:
-                        if is_down:
-                            self.hotkey_triggered.emit("QuickDot")
-                        return 1
             except Exception:
                 pass
 

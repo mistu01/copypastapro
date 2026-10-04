@@ -571,18 +571,6 @@ class DetailedWindow(QWidget):
         box_paste.addWidget(sub_paste)
         layout.addLayout(box_paste)
 
-        box_dot = QVBoxLayout()
-        box_dot.setSpacing(2)
-        self.chk_quick_dot = QCheckBox("Show Quick Paste Dot at active input fields")
-        self.chk_quick_dot.setChecked(self.db.get_bool_setting("quick_paste_dot_enabled", True))
-        self.chk_quick_dot.stateChanged.connect(self._save_settings)
-        box_dot.addWidget(self.chk_quick_dot)
-        sub_dot = QLabel("💡 Hover on dot to auto-expand clips without clicking. Or press Alt + V to summon at text caret.")
-        sub_dot.setStyleSheet("color: #6ee7b7; font-size: 11px; margin-left: 24px;")
-        sub_dot.setWordWrap(True)
-        box_dot.addWidget(sub_dot)
-        layout.addLayout(box_dot)
-
         hist_box = QHBoxLayout()
         hist_lbl = QLabel("Maximum clipboard history items:")
         hist_lbl.setStyleSheet("color: #f0fdf4; font-size: 12px;")
@@ -633,7 +621,7 @@ class DetailedWindow(QWidget):
         app_title_lbl.setStyleSheet("color: #00f59b; font-weight: 700; font-size: 13px;")
         about_layout.addWidget(app_title_lbl)
 
-        app_desc_lbl = QLabel("10-Slot Smart Pinning  •  2FA TOTP  •  Quick Paste Dot (Hover Auto-Expand)  •  Alt+V Hotkey  •  Floating Bar")
+        app_desc_lbl = QLabel("10 Pinned Slots  •  2FA TOTP Authenticator  •  Desktop Floating Bar  •  Win + V Interceptor")
         app_desc_lbl.setStyleSheet("color: #a7f3d0; font-size: 11px; line-height: 1.4;")
         app_desc_lbl.setWordWrap(True)
         about_layout.addWidget(app_desc_lbl)
@@ -678,7 +666,6 @@ class DetailedWindow(QWidget):
         self.db.set_setting("floating_bar_enabled", str(self.chk_floating_bar.isChecked()).lower())
         self.db.set_setting("floating_bar_opacity", str(self.opacity_slider.value() / 100.0))
         self.db.set_setting("auto_paste_on_select", str(self.chk_auto_paste.isChecked()).lower())
-        self.db.set_setting("quick_paste_dot_enabled", str(self.chk_quick_dot.isChecked()).lower())
         self.db.set_setting("max_history_count", self.combo_max_history.currentText())
         self.settings_changed.emit()
 
@@ -929,12 +916,12 @@ class DetailedWindow(QWidget):
             success, msg = self.db.pin_item(item_id)
             self.toast.show_message(msg)
 
-        self.refresh_clipboard_items()
+        QTimer.singleShot(60, self.refresh_clipboard_items)
         self.pinned_changed.emit()
 
     def _delete_item(self, item_id: int):
         self.db.delete_item(item_id)
-        self.refresh_clipboard_items()
+        QTimer.singleShot(60, self.refresh_clipboard_items)
         self.toast.show_message("Clipping deleted")
         self.pinned_changed.emit()
 

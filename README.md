@@ -1,29 +1,19 @@
-# 📋 Mistus Copy Pasta (v1.3.6) - Next-Gen Windows Clipboard Manager & 2FA Authenticator
+# 📋 Mistus Copy Pasta (v1.3.7) - Next-Gen Windows Clipboard Manager & 2FA Authenticator
 
 **Mistus Copy Pasta** is a modern Windows 11-styled software with a stunning **ZeBeyond Cyber-Emerald Midnight** dark theme designed to replace the default Windows Clipboard history (`Win + V`) with advanced productivity features:
 
 - 🟢 **ZeBeyond Cyber-Emerald Theme**: Ultra-sleek obsidian and neon mint/emerald UI design inspired by top-tier modern SaaS interfaces.
-- 🎯 **Input Field Quick Paste Dot (Hover Auto-Expand)**: When clicked into any input box or upon pressing `Alt + V`, a subtle dot menu appears. Simply **hover** over the dot to auto-expand the compact floating row of recent pastable clips without clicking; click any clip to directly paste it!
-- ⌨️ **Caret Hotkey (`Alt + V` / `Ctrl + Alt + V`)**: Instantly summons the quick paste menu right at the active text caret/cursor in any application.
+- 🚀 **Desktop Floating Bar**: A sleek, draggable, translucent acrylic pill docked at your screen edge showing your recent clips as interactive quick chips. Click any chip to directly paste into the active input field!
 - 📌 **10 Pinned Entries on Top**: Pin up to 10 critical snippets with dedicated numbered slot badges (`#1` to `#10`), persistent across reboots and immune to history clearing.
 - 🔑 **Built-in 2FA TOTP Authenticator**: Native time-based 2FA code generator secured with **Windows DPAPI** (hardware/user-account encryption), live countdown progress meters, and one-click paste into active apps.
-- 🚀 **Desktop Floating Bar**: A sleek, draggable, translucent acrylic pill docked at your screen edge showing your recent clips as interactive quick chips, expandable to the detailed flyout with a single click.
 - 🗖 **Detailed Flyout Window**: Compact Windows 11 Fluent flyout (similar to the native `Win + V` flyout, but with live search, 4 dedicated tabs, auto-paste, and flyout pin lock).
-- ⌨️ **Global Shortcut Interceptor**: Intercepts `Win + V`, `Ctrl + Shift + V`, and `Alt + V` directly at the OS level.
+- ⌨️ **Global Shortcut Interceptor**: Intercepts `Win + V` and `Ctrl + Shift + V` directly at the OS level.
 
 ---
 
 ## 📸 Key Features & Capabilities
 
-### 1. Input Box Quick Paste Dot & Floating Row (v1.3.0)
-- **Automatic Input Detection**: Detects clicks in editable text fields across Windows (Win32, Chromium, Firefox, Electron, WPF, and modern apps).
-- **Subtle Floating Dot**: Appears right at the active input field without stealing focus or interrupting your typing.
-- **Hover Auto-Expansion**: Hovering over the dot instantly expands the compact pastable entries menu without needing to click!
-- **Compact & Sized Perfectly**: Slim, elegant horizontal pill (never overly big or intrusive) displaying the top 3-4 clips with clean preview text.
-- **Instant Insertion**: Click any clip in the row to directly paste it into the active input box!
-- **Caret Hotkey (`Alt + V`)**: Press `Alt + V` (or `Ctrl + Alt + V`) to summon the menu directly at your cursor anywhere in Windows.
-
-### 2. Windows Key + V Interception & Custom Hotkeys
+### 1. Windows Key + V Interception & Custom Hotkeys
 - **Native Hook (`WH_KEYBOARD_LL`)**: Intercepts `Win + V` directly at the OS level so Windows' built-in flyout is suppressed.
 - **Secondary Shortcut**: Press `Ctrl + Shift + V` or use the system tray icon anytime.
 - **Settings Toggle**: Easily toggle `Win + V` interception or `Ctrl + Shift + V` on or off in the Settings tab.
@@ -105,7 +95,6 @@ CopyPasta/
 │   └── ui/
 │       ├── detailed_window.py # Compact clipboard flyout (4 tabs, search, 10 pins, 2FA)
 │       ├── floating_bar.py    # Draggable translucent desktop pill widget
-│       ├── quick_dot.py       # Input box Quick Paste Dot & floating clip row
 │       ├── totp_dialog.py     # Add / Edit 2FA account modal
 │       └── toast.py           # In-app feedback toast notification
 ├── main.py                 # Application entry point, tray icon, single-instance mutex
