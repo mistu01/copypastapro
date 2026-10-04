@@ -5,6 +5,7 @@ Intercepts Win+V and/or custom hotkeys (e.g. Ctrl+Shift+V) reliably system-wide.
 
 import sys
 import threading
+import winreg
 import ctypes
 from ctypes import wintypes
 from PySide6.QtCore import QObject, Signal
@@ -39,6 +40,38 @@ class KBDLLHOOKSTRUCT(ctypes.Structure):
 HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
 
 
+def configure_windows_clipboard_override(disable_native: bool = True):
+    """
+    Configures Windows registry so Windows Explorer does not intercept Win+V
+    and disables native Windows Clipboard History flyout in favor of CopyPasta.
+    Only touches Current User (HKCU) - requires no admin elevation.
+    """
+    try:
+        # 1. Disable Win+V in Windows Explorer hotkey list
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced") as key:
+            try:
+                cur_disabled, _ = winreg.QueryValueEx(key, "DisabledHotkeys")
+            except FileNotFoundError:
+                cur_disabled = ""
+
+            if disable_native:
+                if "V" not in cur_disabled:
+                    new_val = cur_disabled + "V"
+                    winreg.SetValueEx(key, "DisabledHotkeys", 0, winreg.REG_SZ, new_val)
+            else:
+                if "V" in cur_disabled:
+                    new_val = cur_disabled.replace("V", "")
+                    winreg.SetValueEx(key, "DisabledHotkeys", 0, winreg.REG_SZ, new_val)
+
+        # 2. Turn off built-in Windows 10/11 Clipboard History
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Clipboard") as key:
+            val = 0 if disable_native else 1
+            winreg.SetValueEx(key, "EnableClipboardHistory", 0, winreg.REG_DWORD, val)
+
+    except Exception as e:
+        print(f"[Hotkey] Note: Could not update Windows clipboard registry: {e}")
+
+
 class HotkeyListener(QObject):
     # Signal emitted when hotkey is triggered
     hotkey_triggered = Signal(str)
@@ -52,10 +85,16 @@ class HotkeyListener(QObject):
         self._thread_id = None
         self._running = False
         self._hook_proc_ref = None
+        self._win_down = False
+
+        # Configure Windows registry to disable native Windows Win+V and clipboard history
+        if self.intercept_win_v:
+            configure_windows_clipboard_override(True)
 
     def update_settings(self, intercept_win_v: bool, custom_hotkey_enabled: bool):
         self.intercept_win_v = intercept_win_v
         self.custom_hotkey_enabled = custom_hotkey_enabled
+        configure_windows_clipboard_override(self.intercept_win_v)
 
     def start(self):
         if self._running:
@@ -72,36 +111,53 @@ class HotkeyListener(QObject):
             self._thread.join(timeout=1.0)
 
     def _low_level_handler(self, nCode, wParam, lParam):
-        if nCode >= 0 and wParam in (WM_KEYDOWN, WM_SYSKEYDOWN):
+        if nCode >= 0:
             try:
                 kb = KBDLLHOOKSTRUCT.from_address(lParam)
-                # Only inspect when 'V' is pressed; pass all other keystrokes through immediately
+                is_down = wParam in (WM_KEYDOWN, WM_SYSKEYDOWN)
+                is_up = wParam in (WM_KEYUP, WM_SYSKEYUP)
+
+                # Track Windows key state instantly with zero overhead
+                if kb.vkCode in (VK_LWIN, VK_RWIN):
+                    if is_down:
+                        self._win_down = True
+                    elif is_up:
+                        self._win_down = False
+
+                # Handle 'V' key press and release
                 if kb.vkCode == VK_V:
-                    win_active = bool((user32.GetAsyncKeyState(VK_LWIN) | user32.GetAsyncKeyState(VK_RWIN)) & 0x8000)
+                    win_active = self._win_down or bool((user32.GetAsyncKeyState(VK_LWIN) | user32.GetAsyncKeyState(VK_RWIN)) & 0x8000)
                     ctrl_active = bool(user32.GetAsyncKeyState(VK_CONTROL) & 0x8000)
                     shift_active = bool(user32.GetAsyncKeyState(VK_SHIFT) & 0x8000)
                     alt_active = (
                         bool(kb.flags & 0x20) or
                         bool(user32.GetAsyncKeyState(VK_MENU) & 0x8000) or
-                        (wParam == WM_SYSKEYDOWN)
+                        (wParam in (WM_SYSKEYDOWN, WM_SYSKEYUP))
                     )
 
-                    # Win + V (without Ctrl or Shift or Alt)
+                    # 1. Win + V (without Ctrl or Shift or Alt)
                     if win_active and not ctrl_active and not shift_active and not alt_active:
                         if self.intercept_win_v:
-                            self.hotkey_triggered.emit("Win+V")
-                            return 1  # Suppress event from Windows shell
+                            if is_down:
+                                self.hotkey_triggered.emit("Win+V")
+                                # Send vkE8 dummy mask key to prevent Windows Shell from opening the Start menu
+                                user32.keybd_event(0xE8, 0, 0, 0)
+                                user32.keybd_event(0xE8, 0, 2, 0)
+                            # Suppress BOTH key-down and key-up so Windows 11 never triggers on key-up
+                            return 1
 
-                    # Ctrl + Shift + V (without Win or Alt)
+                    # 2. Ctrl + Shift + V (without Win or Alt)
                     if ctrl_active and shift_active and not win_active and not alt_active:
                         if self.custom_hotkey_enabled:
-                            self.hotkey_triggered.emit("Ctrl+Shift+V")
-                            return 1  # Suppress event
+                            if is_down:
+                                self.hotkey_triggered.emit("Ctrl+Shift+V")
+                            return 1
 
-                    # Alt + V or Ctrl + Alt + V -> Activate Input Box Quick Paste Dot & Row
+                    # 3. Alt + V or Ctrl + Alt + V -> Activate Input Box Quick Paste Dot & Row
                     if alt_active and not win_active and not shift_active:
-                        self.hotkey_triggered.emit("QuickDot")
-                        return 1  # Suppress event
+                        if is_down:
+                            self.hotkey_triggered.emit("QuickDot")
+                        return 1
             except Exception:
                 pass
 

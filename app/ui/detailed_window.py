@@ -483,10 +483,33 @@ class DetailedWindow(QWidget):
         self.chk_win_v.setChecked(self.db.get_bool_setting("intercept_win_v", True))
         self.chk_win_v.stateChanged.connect(self._save_settings)
         box_win_v.addWidget(self.chk_win_v)
-        sub_win_v = QLabel("Replaces the default Windows clipboard flyout with Mistus Copy Pasta.")
+        sub_win_v = QLabel("Replaces the default Windows clipboard flyout with Mistus Copy Pasta (automatically disables Windows' native clipboard flyout).")
         sub_win_v.setStyleSheet("color: #6ee7b7; font-size: 11px; margin-left: 24px;")
         sub_win_v.setWordWrap(True)
         box_win_v.addWidget(sub_win_v)
+
+        win_cfg_btn = QPushButton(" Open Windows Clipboard Settings")
+        win_cfg_btn.setIcon(AppIcons.settings(13, "#00f59b"))
+        win_cfg_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(0, 245, 155, 0.08);
+                border: 1px solid rgba(0, 245, 155, 0.25);
+                border-radius: 6px;
+                color: #6ee7b7;
+                font-size: 11px;
+                padding: 4px 10px;
+                margin-left: 24px;
+                max-width: 250px;
+                text-align: left;
+            }
+            QPushButton:hover {
+                background: rgba(0, 245, 155, 0.16);
+                color: #ffffff;
+            }
+        """)
+        win_cfg_btn.setCursor(Qt.PointingHandCursor)
+        win_cfg_btn.clicked.connect(self._open_windows_clipboard_settings)
+        box_win_v.addWidget(win_cfg_btn)
         layout.addLayout(box_win_v)
 
         box_custom = QVBoxLayout()
@@ -658,6 +681,13 @@ class DetailedWindow(QWidget):
         self.db.set_setting("quick_paste_dot_enabled", str(self.chk_quick_dot.isChecked()).lower())
         self.db.set_setting("max_history_count", self.combo_max_history.currentText())
         self.settings_changed.emit()
+
+    def _open_windows_clipboard_settings(self):
+        import webbrowser
+        try:
+            webbrowser.open("ms-settings:clipboard")
+        except Exception:
+            pass
 
     def _clear_unpinned_history(self):
         reply = QMessageBox.question(
