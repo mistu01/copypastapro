@@ -57,6 +57,7 @@ class HotkeyListener(QObject):
         self._win_down = False
         self._ctrl_down = False
         self._shift_down = False
+        self._alt_down = False
 
     def update_settings(self, intercept_win_v: bool, custom_hotkey_enabled: bool):
         self.intercept_win_v = intercept_win_v
@@ -104,13 +105,27 @@ class HotkeyListener(QObject):
                     elif is_up:
                         self._shift_down = False
 
+                # Track Alt
+                if kb.vkCode in (VK_MENU, 0x12, 0xA4, 0xA5):
+                    if is_down:
+                        self._alt_down = True
+                    elif is_up:
+                        self._alt_down = False
+
                 # Handle 'V' key press
                 if is_down and kb.vkCode == VK_V:
                     # Check Windows Key state
                     win_active = self._win_down or bool(user32.GetAsyncKeyState(VK_LWIN) & 0x8000) or bool(user32.GetAsyncKeyState(VK_RWIN) & 0x8000)
                     ctrl_active = self._ctrl_down or bool(user32.GetAsyncKeyState(VK_CONTROL) & 0x8000)
                     shift_active = self._shift_down or bool(user32.GetAsyncKeyState(VK_SHIFT) & 0x8000)
-                    alt_active = bool(user32.GetAsyncKeyState(VK_MENU) & 0x8000)
+                    alt_active = (
+                        self._alt_down or
+                        bool(kb.flags & 0x20) or
+                        bool(user32.GetAsyncKeyState(VK_MENU) & 0x8000) or
+                        bool(user32.GetAsyncKeyState(0xA4) & 0x8000) or
+                        bool(user32.GetAsyncKeyState(0xA5) & 0x8000) or
+                        wParam in (WM_SYSKEYDOWN, WM_SYSKEYUP)
+                    )
 
                     # Win + V (without Ctrl or Shift or Alt)
                     if win_active and not ctrl_active and not shift_active and not alt_active:
@@ -130,7 +145,7 @@ class HotkeyListener(QObject):
                         return 1  # Suppress event
 
                 # Notify typing activity on non-modifier keys to dismiss floating dot
-                if is_down and kb.vkCode not in (VK_LWIN, VK_RWIN, VK_CONTROL, 0xA2, 0xA3, VK_SHIFT, 0xA0, 0xA1, VK_MENU, 0x12):
+                if is_down and kb.vkCode not in (VK_LWIN, VK_RWIN, VK_CONTROL, 0xA2, 0xA3, VK_SHIFT, 0xA0, 0xA1, VK_MENU, 0x12, 0xA4, 0xA5):
                     self.user_typing.emit()
             except Exception as e:
                 print(f"[Hotkey] Hook callback error: {e}")
@@ -144,12 +159,13 @@ class HotkeyListener(QObject):
         self.hook_id = user32.SetWindowsHookExW(
             WH_KEYBOARD_LL,
             self._hook_proc_ref,
-            kernel32.GetModuleHandleW(None),
+            None,
             0
         )
 
         if not self.hook_id:
-            print("[Hotkey] Failed to install low-level keyboard hook!")
+            err = kernel32.GetLastError()
+            print(f"[Hotkey] Failed to install low-level keyboard hook! Error: {err}")
             return
 
         msg = wintypes.MSG()

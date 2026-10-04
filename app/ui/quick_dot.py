@@ -81,13 +81,29 @@ GetGUIThreadInfo = user32.GetGUIThreadInfo
 GetGUIThreadInfo.argtypes = [wintypes.DWORD, ctypes.POINTER(GUITHREADINFO)]
 GetGUIThreadInfo.restype = wintypes.BOOL
 
-AccessibleObjectFromPoint = oleacc.AccessibleObjectFromPoint
-AccessibleObjectFromPoint.argtypes = [
-    POINT,
+class GUID(ctypes.Structure):
+    _fields_ = [
+        ("Data1", wintypes.DWORD),
+        ("Data2", wintypes.WORD),
+        ("Data3", wintypes.WORD),
+        ("Data4", ctypes.c_byte * 8),
+    ]
+
+IID_IACCESSIBLE = GUID(
+    0x618736E0, 0x3C3D, 0x11CF,
+    (ctypes.c_byte * 8)(0x81, 0x0C, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71)
+)
+
+OBJID_CLIENT = 0xFFFFFFFC & 0xFFFFFFFF
+
+AccessibleObjectFromWindow = oleacc.AccessibleObjectFromWindow
+AccessibleObjectFromWindow.argtypes = [
+    wintypes.HWND,
+    wintypes.DWORD,
+    ctypes.POINTER(GUID),
     ctypes.POINTER(ctypes.c_void_p),
-    ctypes.POINTER(VARIANT)
 ]
-AccessibleObjectFromPoint.restype = ctypes.c_long
+AccessibleObjectFromWindow.restype = ctypes.c_long
 
 
 def inspect_input_at_point(x: int, y: int, our_pid: int) -> Tuple[bool, Optional[Tuple[int, int, int, int]], Optional[int]]:
@@ -107,56 +123,40 @@ def inspect_input_at_point(x: int, y: int, our_pid: int) -> Tuple[bool, Optional
         if pid.value == our_pid:
             return False, None, None
 
+        # Check child window under point if hwnd is a parent container
+        child_hwnd = user32.RealChildWindowFromPoint(hwnd, pt)
+        if child_hwnd and child_hwnd != hwnd:
+            c_pid = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(child_hwnd, ctypes.byref(c_pid))
+            if c_pid.value != our_pid:
+                hwnd = child_hwnd
+
         # 1. Check Win32 Class Name
         buf = ctypes.create_unicode_buffer(256)
         user32.GetClassNameW(hwnd, buf, 256)
         class_name = buf.value.lower()
 
         known_edit_classes = (
-            "edit", "richedit", "richedit20w", "richedit50w", "scintilla",
-            "textbox", "search", "directuihwnd", "consolewindowclass",
-            "windows.ui.core.corewindow", "applicationframewindow", "term"
+            "edit", "richedit", "richedit20w", "richedit50w", "richedit60w", "scintilla",
+            "textbox", "search", "input", "directuihwnd", "consolewindowclass",
+            "windows.ui.core.corewindow", "applicationframewindow",
+            "windows.ui.input.inputsite.windowclass", "term",
+            "qt6qwindowicon", "qt5qwindowicon"
         )
         is_known_class = any(k in class_name for k in known_edit_classes)
+        if is_known_class:
+            rect_buf = wintypes.RECT()
+            if user32.GetWindowRect(hwnd, ctypes.byref(rect_buf)):
+                rect = (
+                    rect_buf.left,
+                    rect_buf.top,
+                    rect_buf.right - rect_buf.left,
+                    rect_buf.bottom - rect_buf.top
+                )
+                return True, rect, hwnd
+            return True, None, hwnd
 
-        # 2. Check IAccessible / MSAA (Chromium, Firefox, Electron, Web inputs, modern forms)
-        pacc = ctypes.c_void_p()
-        var_child = VARIANT()
-        hr = AccessibleObjectFromPoint(pt, ctypes.byref(pacc), ctypes.byref(var_child))
-        if hr == 0 and pacc.value:
-            try:
-                vtable_ptr = ctypes.cast(pacc, ctypes.POINTER(ctypes.c_void_p))[0]
-                vtable = ctypes.cast(vtable_ptr, ctypes.POINTER(ctypes.c_void_p))
-
-                # get_accRole (index 13)
-                get_acc_role = ctypes.WINFUNCTYPE(
-                    ctypes.c_long, ctypes.c_void_p, VARIANT, ctypes.POINTER(VARIANT)
-                )(vtable[13])
-                var_role = VARIANT()
-                hr_role = get_acc_role(pacc.value, var_child, ctypes.byref(var_role))
-                role = (var_role.val & 0xFFFFFFFF) if hr_role == 0 else 0
-
-                # accLocation (index 22)
-                acc_loc = ctypes.WINFUNCTYPE(
-                    ctypes.c_long, ctypes.c_void_p,
-                    ctypes.POINTER(ctypes.c_long), ctypes.POINTER(ctypes.c_long),
-                    ctypes.POINTER(ctypes.c_long), ctypes.POINTER(ctypes.c_long),
-                    VARIANT
-                )(vtable[22])
-                l, t, w, h = ctypes.c_long(), ctypes.c_long(), ctypes.c_long(), ctypes.c_long()
-                hr_loc = acc_loc(pacc.value, ctypes.byref(l), ctypes.byref(t), ctypes.byref(w), ctypes.byref(h), var_child)
-
-                # Release interface
-                release_func = ctypes.WINFUNCTYPE(ctypes.c_ulong, ctypes.c_void_p)(vtable[2])
-                release_func(pacc.value)
-
-                if role in (ROLE_SYSTEM_TEXT, ROLE_SYSTEM_COMBOBOX):
-                    rect = (l.value, t.value, w.value, h.value) if (hr_loc == 0 and w.value > 0 and h.value > 0) else None
-                    return True, rect, hwnd
-            except Exception:
-                pass
-
-        # 3. Check Caret via GetGUIThreadInfo for standard/foreground threads
+        # 2. Check Caret via GetGUIThreadInfo for target thread or active foreground window
         gui_info = GUITHREADINFO()
         gui_info.cbSize = ctypes.sizeof(GUITHREADINFO)
         tid = user32.GetWindowThreadProcessId(hwnd, None)
@@ -168,17 +168,46 @@ def inspect_input_at_point(x: int, y: int, our_pid: int) -> Tuple[bool, Optional
                 rect = (pt_caret.x, pt_caret.y, rc.right - rc.left, rc.bottom - rc.top)
                 return True, rect, hwnd
 
-        # 4. If class is known edit control
-        if is_known_class:
-            rect_buf = wintypes.RECT()
-            if user32.GetWindowRect(hwnd, ctypes.byref(rect_buf)):
-                rect = (
-                    rect_buf.left,
-                    rect_buf.top,
-                    rect_buf.right - rect_buf.left,
-                    rect_buf.bottom - rect_buf.top
-                )
-                return True, rect, hwnd
+        fore_hwnd = user32.GetForegroundWindow()
+        if fore_hwnd and fore_hwnd != hwnd:
+            fore_tid = user32.GetWindowThreadProcessId(fore_hwnd, None)
+            if GetGUIThreadInfo(fore_tid, ctypes.byref(gui_info)):
+                if gui_info.hwndCaret:
+                    rc = gui_info.rcCaret
+                    pt_caret = POINT(rc.left, rc.top)
+                    user32.ClientToScreen(gui_info.hwndCaret, ctypes.byref(pt_caret))
+                    rect = (pt_caret.x, pt_caret.y, rc.right - rc.left, rc.bottom - rc.top)
+                    return True, rect, fore_hwnd
+
+        # 3. Check MSAA via AccessibleObjectFromWindow
+        pacc = ctypes.c_void_p()
+        hr = AccessibleObjectFromWindow(hwnd, OBJID_CLIENT, ctypes.byref(IID_IACCESSIBLE), ctypes.byref(pacc))
+        if hr == 0 and pacc.value:
+            try:
+                vtable_ptr = ctypes.cast(pacc, ctypes.POINTER(ctypes.c_void_p))[0]
+                vtable = ctypes.cast(vtable_ptr, ctypes.POINTER(ctypes.c_void_p))
+                var_child = VARIANT(3, 0, 0, 0, 0, 0)
+                var_role = VARIANT()
+                get_acc_role = ctypes.WINFUNCTYPE(
+                    ctypes.c_long, ctypes.c_void_p, VARIANT, ctypes.POINTER(VARIANT)
+                )(vtable[13])
+                hr_role = get_acc_role(pacc.value, var_child, ctypes.byref(var_role))
+                role = (var_role.val & 0xFFFFFFFF) if hr_role == 0 else 0
+                release_func = ctypes.WINFUNCTYPE(ctypes.c_ulong, ctypes.c_void_p)(vtable[2])
+                release_func(pacc.value)
+                if role in (ROLE_SYSTEM_TEXT, ROLE_SYSTEM_COMBOBOX):
+                    rect_buf = wintypes.RECT()
+                    rect = None
+                    if user32.GetWindowRect(hwnd, ctypes.byref(rect_buf)):
+                        rect = (
+                            rect_buf.left,
+                            rect_buf.top,
+                            rect_buf.right - rect_buf.left,
+                            rect_buf.bottom - rect_buf.top
+                        )
+                    return True, rect, hwnd
+            except Exception:
+                pass
 
     except Exception:
         pass
@@ -227,10 +256,12 @@ class LowLevelMouseHook(QObject):
         self._hook_id = user32.SetWindowsHookExW(
             WH_MOUSE_LL,
             self._hook_proc_ref,
-            kernel32.GetModuleHandleW(None),
+            None,
             0
         )
         if not self._hook_id:
+            err = kernel32.GetLastError()
+            print(f"[QuickDot] Failed to install low-level mouse hook! Error: {err}")
             return
 
         msg = wintypes.MSG()
@@ -629,7 +660,13 @@ class InputAnchorManager(QObject):
         """
         Triggered when pressing the hotkey (Alt + V / Ctrl + Alt + V).
         Locates the active input caret or mouse cursor and auto-expands the quick paste row!
+        Pressing again toggles/dismisses the menu.
         """
+        if self.quick_row.isVisible():
+            self.quick_row.hide()
+            self.quick_dot.hide()
+            return
+
         fore_hwnd = user32.GetForegroundWindow()
         if not fore_hwnd:
             return
