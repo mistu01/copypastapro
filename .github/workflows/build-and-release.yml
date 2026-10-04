@@ -52,7 +52,7 @@ jobs:
 
       - name: Compile Windows Setup Installer with Inno Setup
         run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion=${{ env.APP_VERSION }} installer.iss
 
       - name: Upload Installer as Workflow Artifact
         uses: actions/upload-artifact@v4

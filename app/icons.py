@@ -38,7 +38,14 @@ LUCIDE_SVGS = {
 }
 
 
-class AppIcons:
+class AppIconsMeta(type):
+    def __getattr__(cls, name: str):
+        if name in LUCIDE_SVGS:
+            return lambda size=16, color="#ffffff", stroke_width=1.75, fill="none": cls.get(name, size, color, stroke_width, fill)
+        raise AttributeError(f"type object '{cls.__name__}' has no attribute '{name}'")
+
+
+class AppIcons(metaclass=AppIconsMeta):
     _pixmap_cache: Dict[Tuple[str, int, str, float, str], QPixmap] = {}
     _icon_cache: Dict[Tuple[str, int, str, float, str], QIcon] = {}
 
@@ -166,3 +173,12 @@ class AppIcons:
     @classmethod
     def star(cls, size: int = 14, color: str = "#f59e0b") -> QIcon:
         return cls.get("star", size, color)
+
+    @classmethod
+    def sparkles(cls, size: int = 16, color: str = "#00f59b") -> QIcon:
+        return cls.get("sparkles", size, color)
+
+    @classmethod
+    def dot(cls, size: int = 16, color: str = "#00f59b") -> QIcon:
+        return cls.get("dot", size, color)
+

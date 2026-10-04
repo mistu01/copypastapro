@@ -1,7 +1,9 @@
+#ifndef MyAppVersion
+#define MyAppVersion "1.3.2"
+#endif
 #define MyAppName "Mistus Copy Pasta"
-#define MyAppVersion "1.3.1"
 #define MyAppPublisher "Mistus Project"
-#define MyAppURL "https://github.com/mistus/copypasta"
+#define MyAppURL "https://github.com/mistu01/copypastapro"
 #define MyAppExeName "MistusCopyPasta.exe"
 
 [Setup]
@@ -18,7 +20,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=.
-OutputBaseFilename=Mistus_Copy_Pasta_Setup_v1.3.1
+OutputBaseFilename=Mistus_Copy_Pasta_Setup_v{#MyAppVersion}
 SetupIconFile=app_icon.ico
 
 ; Visuals & Branding
