@@ -72,19 +72,25 @@ class PasteHelper:
 
     def set_clipboard_text(self, text: str):
         """
-        Set clipboard text using both Qt and Win32 direct API to guarantee
-        instant availability across all applications.
+        Set clipboard text safely. Uses Qt clipboard when available,
+        or Win32 direct API as fallback without racing or clearing.
         """
+        self.last_copied_text = text
+
         # 1. Update via Qt clipboard if available
         try:
             from PySide6.QtWidgets import QApplication
-            clip = QApplication.clipboard()
-            if clip:
-                clip.setText(text)
+            from PySide6.QtGui import QClipboard
+            app = QApplication.instance()
+            if app:
+                clip = app.clipboard()
+                if clip:
+                    clip.setText(text, QClipboard.Clipboard)
+                    return
         except Exception:
             pass
 
-        # 2. Update via Win32 direct API
+        # 2. Update via Win32 direct API fallback
         if HAS_WIN32:
             for _ in range(5):
                 try:
@@ -121,59 +127,74 @@ class PasteHelper:
                 self._force_window_to_foreground(hwnd_to_use)
                 time.sleep(0.05)
 
-        # Release any stuck modifiers and send Ctrl+V
+        # Send simulated Ctrl+V with hardware scan codes
         self._simulate_ctrl_v()
 
     def _force_window_to_foreground(self, target_hwnd: int):
         """
         Clean Win32 foreground activation that preserves input cursor focus.
-        Does NOT simulate Alt key so active input fields / text carats are NEVER defocused.
+        Uses AttachThreadInput without synthesizing any Alt keystrokes,
+        preventing Firefox, WhatsApp, or other apps from entering the menu bar.
         """
         try:
             if not target_hwnd or not win32gui.IsWindow(target_hwnd):
                 return
 
-            # Allow target process to become foreground
-            user32.AllowSetForegroundWindow(-1)
-            _, target_pid = win32process.GetWindowThreadProcessId(target_hwnd)
-            if target_pid:
-                user32.AllowSetForegroundWindow(target_pid)
+            fore_hwnd = user32.GetForegroundWindow()
+            if fore_hwnd == target_hwnd:
+                return
 
             if user32.IsIconic(target_hwnd):
                 user32.ShowWindow(target_hwnd, SW_RESTORE)
 
-            fore_hwnd = user32.GetForegroundWindow()
-            if fore_hwnd != target_hwnd:
-                user32.keybd_event(VK_MENU, 0, 0, 0)
-                user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
-                user32.BringWindowToTop(target_hwnd)
-                user32.SetForegroundWindow(target_hwnd)
+            cur_thread = kernel32.GetCurrentThreadId()
+            fore_thread = user32.GetWindowThreadProcessId(fore_hwnd, None) if fore_hwnd else 0
+            target_thread = user32.GetWindowThreadProcessId(target_hwnd, None)
+
+            # Temporarily attach thread inputs to gain foreground permission cleanly
+            if fore_thread and fore_thread != cur_thread:
+                user32.AttachThreadInput(cur_thread, fore_thread, True)
+            if target_thread and target_thread != cur_thread:
+                user32.AttachThreadInput(cur_thread, target_thread, True)
+
+            user32.AllowSetForegroundWindow(-1)
+            user32.BringWindowToTop(target_hwnd)
+            user32.SetForegroundWindow(target_hwnd)
+
+            # Detach thread input
+            if target_thread and target_thread != cur_thread:
+                user32.AttachThreadInput(cur_thread, target_thread, False)
+            if fore_thread and fore_thread != cur_thread:
+                user32.AttachThreadInput(cur_thread, fore_thread, False)
         except Exception as e:
             print(f"[PasteHelper] Error forcing foreground: {e}")
 
     def _simulate_ctrl_v(self):
-        """Send simulated Ctrl+V keystroke to insert clipboard contents into input field."""
+        """Send simulated Ctrl+V keystroke with OEM hardware scan codes into input field."""
         try:
             # Release modifier keys ONLY if they are physically held down
-            for vk in (VK_LWIN, VK_RWIN, VK_SHIFT, VK_CONTROL, VK_MENU):
+            for vk in (VK_LWIN, VK_RWIN, VK_SHIFT, VK_MENU):
                 if user32.GetAsyncKeyState(vk) & 0x8000:
                     user32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
 
-            time.sleep(0.02)
+            time.sleep(0.01)
+
+            scan_ctrl = user32.MapVirtualKeyW(VK_CONTROL, 0)
+            scan_v = user32.MapVirtualKeyW(VK_V, 0)
 
             # Press Ctrl
-            user32.keybd_event(VK_CONTROL, 0, 0, 0)
+            user32.keybd_event(VK_CONTROL, scan_ctrl, 0, 0)
             time.sleep(0.015)
 
             # Press V
-            user32.keybd_event(VK_V, 0, 0, 0)
-            time.sleep(0.025)
+            user32.keybd_event(VK_V, scan_v, 0, 0)
+            time.sleep(0.02)
 
             # Release V
-            user32.keybd_event(VK_V, 0, KEYEVENTF_KEYUP, 0)
+            user32.keybd_event(VK_V, scan_v, KEYEVENTF_KEYUP, 0)
             time.sleep(0.015)
 
             # Release Ctrl
-            user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+            user32.keybd_event(VK_CONTROL, scan_ctrl, KEYEVENTF_KEYUP, 0)
         except Exception as e:
             print(f"[PasteHelper] Error simulating Ctrl+V: {e}")

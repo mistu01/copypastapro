@@ -176,7 +176,8 @@ class CopyPastaApp:
             text = self.clipboard.text()
             if not text or not text.strip():
                 return
-            if text == self._last_clip_text:
+            if text == self._last_clip_text or text == getattr(self.paste_helper, "last_copied_text", None):
+                self._last_clip_text = text
                 return
 
             self._last_clip_text = text

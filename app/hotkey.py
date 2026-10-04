@@ -37,7 +37,9 @@ class KBDLLHOOKSTRUCT(ctypes.Structure):
         ("dwExtraInfo", ctypes.c_size_t)
     ]
 
-HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
+HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_ssize_t, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
+user32.CallNextHookEx.restype = ctypes.c_ssize_t
+user32.CallNextHookEx.argtypes = [wintypes.HHOOK, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM]
 
 
 def configure_windows_clipboard_override(disable_native: bool = True):
@@ -116,7 +118,8 @@ class HotkeyListener(QObject):
                 kb = KBDLLHOOKSTRUCT.from_address(lParam)
 
                 # Never intercept synthetic/injected keystrokes (allows PasteHelper Ctrl+V to pass through!)
-                if kb.flags & 0x01:
+                # LLKHF_INJECTED = 0x10, LLKHF_LOWER_IL_INJECTED = 0x02
+                if kb.flags & 0x12:
                     return user32.CallNextHookEx(self.hook_id, nCode, wParam, lParam)
 
                 is_down = wParam in (WM_KEYDOWN, WM_SYSKEYDOWN)
@@ -131,7 +134,10 @@ class HotkeyListener(QObject):
 
                 # Handle 'V' key press and release
                 if kb.vkCode == VK_V:
-                    win_active = self._win_down or bool((user32.GetAsyncKeyState(VK_LWIN) | user32.GetAsyncKeyState(VK_RWIN)) & 0x8000)
+                    phys_win = bool((user32.GetAsyncKeyState(VK_LWIN) | user32.GetAsyncKeyState(VK_RWIN)) & 0x8000)
+                    if not phys_win:
+                        self._win_down = False
+                    win_active = self._win_down or phys_win
                     ctrl_active = bool(user32.GetAsyncKeyState(VK_CONTROL) & 0x8000)
                     shift_active = bool(user32.GetAsyncKeyState(VK_SHIFT) & 0x8000)
                     alt_active = (

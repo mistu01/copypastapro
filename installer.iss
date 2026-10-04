@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-#define MyAppVersion "1.3.7"
+#define MyAppVersion "1.3.8"
 #endif
 #define MyAppName "Mistus Copy Pasta"
 #define MyAppPublisher "Mistus Project"
@@ -14,6 +14,9 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
+
+; 64-bit mode: ensures installation into "Program Files" instead of "Program Files (x86)" on 64-bit Windows
+ArchitecturesInstallIn64BitMode=x64compatible
 
 ; Destination: Program Files with admin privilege, or fallback
 DefaultDirName={autopf}\{#MyAppName}

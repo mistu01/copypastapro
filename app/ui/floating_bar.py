@@ -5,6 +5,9 @@ Supports dual-sided drag handles (left & right), full draggable surface in minim
 live 2FA code chip, and smooth expand to detailed flyout.
 """
 
+import sys
+import ctypes
+from ctypes import wintypes
 from typing import List, Dict, Any, Optional
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QLabel, QPushButton, QFrame,
@@ -79,7 +82,6 @@ class FloatingBar(QWidget):
         hwnd = int(self.winId())
         if hwnd:
             try:
-                import ctypes
                 user32 = ctypes.windll.user32
                 GWL_EXSTYLE = -20
                 WS_EX_NOACTIVATE = 0x08000000
@@ -89,6 +91,13 @@ class FloatingBar(QWidget):
                 SetWindowLong(hwnd, GWL_EXSTYLE, ex_style | WS_EX_NOACTIVATE)
             except Exception:
                 pass
+
+    def nativeEvent(self, eventType, message):
+        if sys.platform == "win32" and eventType == b"windows_generic_MSG":
+            msg = wintypes.MSG.from_address(int(message))
+            if msg.message == 0x0021:  # WM_MOUSEACTIVATE
+                return True, 3  # MA_NOACTIVATE: process mouse click without activating window
+        return super().nativeEvent(eventType, message)
 
     def _init_ui(self):
         self.main_layout = QHBoxLayout(self)
