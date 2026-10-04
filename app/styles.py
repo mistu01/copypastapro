@@ -79,7 +79,7 @@ QPushButton.NavTab {
     background-color: transparent;
     border: none;
     border-radius: 7px;
-    padding: 7px 12px;
+    padding: 6px 9px;
     color: #a7f3d0;
     font-weight: 500;
     font-size: 12px;
@@ -95,6 +95,14 @@ QPushButton.NavTab:checked {
     border: 1px solid #10b981;
     color: #ffffff;
     font-weight: 700;
+}
+
+/* Checkbox Modern Styling */
+QCheckBox {
+    spacing: 8px;
+    color: #f0fdf4;
+    font-size: 13px;
+    font-weight: 500;
 }
 
 /* Action Icon Buttons */
