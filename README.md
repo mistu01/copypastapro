@@ -1,4 +1,4 @@
-# 📋 Mistus Copy Pasta (v1.3.0) - Next-Gen Windows Clipboard Manager & 2FA Authenticator
+# 📋 Mistus Copy Pasta (v1.3.1) - Next-Gen Windows Clipboard Manager & 2FA Authenticator
 
 **Mistus Copy Pasta** is a modern Windows 11-styled software with a stunning **ZeBeyond Cyber-Emerald Midnight** dark theme designed to replace the default Windows Clipboard history (`Win + V`) with advanced productivity features:
 
@@ -60,9 +60,9 @@
 
 ## 🚀 Installation & Running
 
-### 📦 Single Unified Windows Setup Installer (`Mistus_Copy_Pasta_Setup_v1.3.0.exe`)
+### 📦 Single Unified Windows Setup Installer (`Mistus_Copy_Pasta_Setup_v1.3.1.exe`)
 To install Mistus Copy Pasta on your system with a full Windows Setup wizard:
-- **Run [`Mistus_Copy_Pasta_Setup_v1.3.0.exe`](file:///c:/Users/Admin/Desktop/CopyPasta/Mistus_Copy_Pasta_Setup_v1.3.0.exe)** directly in the project root.
+- **Run [`Mistus_Copy_Pasta_Setup_v1.3.1.exe`](file:///c:/Users/Admin/Desktop/CopyPasta/Mistus_Copy_Pasta_Setup_v1.3.1.exe)** directly in the project root.
 - All duplicate/legacy setup files have been consolidated into this single installer.
 - Features of the setup wizard:
   1. **Welcome Screen & Branding**: Professional wizard sidebar graphic and branding.

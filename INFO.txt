@@ -1,4 +1,4 @@
-Welcome to Mistus Copy Pasta (v1.3.0)!
+Welcome to Mistus Copy Pasta (v1.3.1)!
 
 Mistus Copy Pasta enhances Windows with advanced clipboard and security tools:
 - 🟢 ZeBeyond Cyber-Emerald Midnight Theme: Sleek obsidian and neon mint/emerald UI aesthetics.

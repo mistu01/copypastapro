@@ -12,7 +12,7 @@ from typing import Optional
 from PySide6.QtWidgets import (
     QApplication, QSystemTrayIcon, QMenu, QMessageBox
 )
-from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont
+from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen, QLinearGradient
 from PySide6.QtCore import Qt, QPoint, QTimer
 
 from app.database import Database
@@ -30,7 +30,6 @@ from app.version import APP_NAME, APP_VERSION, APP_MUTEX_NAME
 
 def create_app_icon() -> QIcon:
     """Create a crisp modern Fluent app icon with vector Lucide artwork in ZeBeyond Cyber-Emerald palette."""
-    from PySide6.QtGui import QLinearGradient
     pix = QPixmap(64, 64)
     pix.fill(Qt.transparent)
     painter = QPainter(pix)
