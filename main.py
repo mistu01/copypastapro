@@ -225,6 +225,8 @@ class CopyPastaApp:
             return
         if self.detailed_window.isVisible() and self.detailed_window.frameGeometry().contains(pos):
             return
+        if self.selection_badge.isVisible() and self.selection_badge.frameGeometry().contains(pos):
+            return
 
         self.hotkey_listener.set_selection_mode(True)
         self.selection_badge.show_at(x, y)

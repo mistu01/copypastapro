@@ -62,6 +62,122 @@ HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_ssize_t, ctypes.c_int, wintypes.WPARAM, w
 user32.CallNextHookEx.restype = ctypes.c_ssize_t
 user32.CallNextHookEx.argtypes = [wintypes.HHOOK, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM]
 
+# Win32 Window & Hit-Test Constants
+GA_ROOT = 2
+WM_NCHITTEST = 0x0084
+SMTO_ABORTIFHUNG = 0x0002
+HTCLIENT = 1
+
+# System Cursor Constants
+IDC_ARROW = 32512
+IDC_IBEAM = 32513
+IDC_SIZENS = 32645
+IDC_SIZEWE = 32644
+IDC_SIZENWSE = 32643
+IDC_SIZENESW = 32642
+IDC_SIZEALL = 32646
+IDC_NO = 32648
+
+class CURSORINFO(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", wintypes.DWORD),
+        ("flags", wintypes.DWORD),
+        ("hCursor", wintypes.HANDLE),
+        ("ptScreenPos", wintypes.POINT)
+    ]
+
+# Window and control classes where text selection is invalid
+EXCLUDED_ROOT_CLASSES = {
+    "progman",
+    "workerw",
+    "shell_traywnd",
+    "shell_secondarytraywnd",
+    "notifyiconoverflowwindow",
+    "windows.ui.core.corewindow",
+    "xamlhost",
+    "xamlexplorerhostislandwindow",
+}
+
+EXCLUDED_CONTROL_CLASSES = {
+    "scrollbar",
+    "#32768",             # Context & popup menus
+    "button",
+    "toolbarwindow32",
+    "msctls_trackbar32",   # Sliders
+    "msctls_statusbar32",
+    "msctls_progress32",
+    "combobox",
+    "sysheaderview32",
+}
+
+EXPLORER_ROOT_CLASSES = {
+    "cabinetwclass",
+    "explorewclass",
+}
+
+try:
+    _h_ibeam = user32.LoadCursorW(None, IDC_IBEAM)
+    _h_arrow = user32.LoadCursorW(None, IDC_ARROW)
+    _h_no = user32.LoadCursorW(None, IDC_NO)
+    _h_resize = {
+        user32.LoadCursorW(None, c) for c in (IDC_SIZENS, IDC_SIZEWE, IDC_SIZENWSE, IDC_SIZENESW, IDC_SIZEALL)
+    }
+except Exception:
+    _h_ibeam = 0
+    _h_arrow = 0
+    _h_no = 0
+    _h_resize = set()
+
+
+def _get_active_cursor():
+    """Returns active cursor handle, or 0 if query fails."""
+    try:
+        ci = CURSORINFO()
+        ci.cbSize = ctypes.sizeof(CURSORINFO)
+        if user32.GetCursorInfo(ctypes.byref(ci)) and (ci.flags & 1):
+            return ci.hCursor
+    except Exception:
+        pass
+    return 0
+
+
+def _inspect_point(x: int, y: int):
+    """
+    Inspects control, root window, and hit-test code under point (x, y)
+    with a safe 15ms timeout that never hangs hooks.
+    """
+    try:
+        pt = wintypes.POINT(x, y)
+        hwnd = user32.WindowFromPoint(pt)
+        if not hwnd:
+            return 0, "", "", HTCLIENT
+
+        c_buf = ctypes.create_unicode_buffer(256)
+        user32.GetClassNameW(hwnd, c_buf, 256)
+        ctrl_class = c_buf.value.lower()
+
+        root_class = ""
+        root_hwnd = user32.GetAncestor(hwnd, GA_ROOT)
+        if root_hwnd:
+            r_buf = ctypes.create_unicode_buffer(256)
+            user32.GetClassNameW(root_hwnd, r_buf, 256)
+            root_class = r_buf.value.lower()
+
+        lparam = ((y & 0xFFFF) << 16) | (x & 0xFFFF)
+        hit_res = wintypes.DWORD(HTCLIENT)
+        user32.SendMessageTimeoutW(
+            hwnd,
+            WM_NCHITTEST,
+            0,
+            lparam,
+            SMTO_ABORTIFHUNG,
+            15,
+            ctypes.byref(hit_res)
+        )
+        return hwnd, ctrl_class, root_class, hit_res.value
+    except Exception:
+        return 0, "", "", HTCLIENT
+
 
 def configure_windows_clipboard_override(disable_native: bool = True):
     """
@@ -124,11 +240,16 @@ class HotkeyListener(QObject):
         self._win_down = False
         self._selection_mode_active = False
 
-        # Mouse selection drag tracking
+        # Mouse selection drag tracking with window/control discrimination
         self._lbutton_down = False
         self._down_pt = (0, 0)
         self._down_time = 0.0
+        self._down_ctrl_class = ""
+        self._down_root_class = ""
+        self._down_hit = HTCLIENT
+        self._down_cursor = 0
         self._last_click_time = 0.0
+        self._last_click_pt = (0, 0)
 
         # Configure Windows registry for Win+V override
         if self.intercept_win_v:
@@ -248,6 +369,16 @@ class HotkeyListener(QObject):
                     self._lbutton_down = True
                     self._down_pt = (ms.pt.x, ms.pt.y)
                     self._down_time = now
+                    self._down_cursor = _get_active_cursor()
+
+                    # Inspect origin window, control class, and hit-test
+                    (
+                        _,
+                        self._down_ctrl_class,
+                        self._down_root_class,
+                        self._down_hit
+                    ) = _inspect_point(ms.pt.x, ms.pt.y)
+
                     # If selection mode was active and user clicks away, dismiss it
                     if self._selection_mode_active:
                         self.selection_cancelled.emit()
@@ -255,19 +386,31 @@ class HotkeyListener(QObject):
                 elif wParam == WM_LBUTTONUP:
                     if self._lbutton_down:
                         self._lbutton_down = False
-                        dx = abs(ms.pt.x - self._down_pt[0])
-                        dy = abs(ms.pt.y - self._down_pt[1])
+                        x_down, y_down = self._down_pt
+                        x_up, y_up = ms.pt.x, ms.pt.y
+                        dx = abs(x_up - x_down)
+                        dy = abs(y_up - y_down)
                         duration = now - self._down_time
+                        up_cursor = _get_active_cursor()
 
-                        # Drag selection: user dragged mouse across text (>14px distance)
-                        if (dx > 14 or dy > 8) and duration < 4.0:
-                            self.selection_detected.emit(ms.pt.x, ms.pt.y)
+                        # Inspect release window, control class, and hit-test
+                        (
+                            _,
+                            up_ctrl_class,
+                            up_root_class,
+                            up_hit
+                        ) = _inspect_point(x_up, y_up)
 
-                        # Double-click selection: user double-clicked to select a word
-                        elif (now - self._last_click_time < 0.40) and dx < 8 and dy < 8:
-                            self.selection_detected.emit(ms.pt.x, ms.pt.y)
+                        if self._is_genuine_text_selection(
+                            x_down, y_down, x_up, y_up,
+                            dx, dy, duration, now,
+                            self._down_ctrl_class, self._down_root_class, self._down_hit, self._down_cursor,
+                            up_ctrl_class, up_root_class, up_hit, up_cursor
+                        ):
+                            self.selection_detected.emit(x_up, y_up)
 
                         self._last_click_time = now
+                        self._last_click_pt = (x_up, y_up)
 
                 elif wParam in (WM_RBUTTONDOWN, WM_MBUTTONDOWN):
                     if self._selection_mode_active:
@@ -277,6 +420,84 @@ class HotkeyListener(QObject):
                 pass
 
         return user32.CallNextHookEx(self.mouse_hook_id, nCode, wParam, lParam)
+
+    def _is_genuine_text_selection(
+        self,
+        x_down: int, y_down: int, x_up: int, y_up: int,
+        dx: int, dy: int, duration: float, now: float,
+        down_ctrl: str, down_root: str, down_hit: int, down_cursor: int,
+        up_ctrl: str, up_root: str, up_hit: int, up_cursor: int
+    ) -> bool:
+        """
+        Validates that mouse activity corresponds strictly to genuine text selection,
+        filtering out file dragging, scrollbars, context menus, and non-text clicking.
+        """
+        # 1. Non-Client Chrome Exclusion (Scrollbars, Window Captions, Min/Max/Close, Resize Borders)
+        # Any interaction with a scrollbar, titlebar, or border is NEVER text selection.
+        if down_hit != HTCLIENT or up_hit != HTCLIENT:
+            return False
+
+        # 2. Desktop, Taskbar & Shell System Windows Exclusion
+        # Desktop (Progman, WorkerW) and Taskbar (Shell_TrayWnd) never contain selectable text.
+        if down_root in EXCLUDED_ROOT_CLASSES or up_root in EXCLUDED_ROOT_CLASSES:
+            return False
+
+        # 3. Non-Text Control Classes Exclusion (Scrollbars, Popup Menus #32768, Buttons, Sliders)
+        if down_ctrl in EXCLUDED_CONTROL_CLASSES or up_ctrl in EXCLUDED_CONTROL_CLASSES:
+            return False
+
+        # 4. File Explorer Exclusion:
+        # In File Explorer (CabinetWClass, ExploreWClass), users drag files, marquee-select files, or double-click to open folders.
+        # Text selection ONLY occurs when actively renaming or typing in an Edit control (e.g. Address bar, search box, inline rename).
+        if down_root in EXPLORER_ROOT_CLASSES or up_root in EXPLORER_ROOT_CLASSES:
+            if "edit" not in down_ctrl and "edit" not in up_ctrl:
+                return False
+
+        # 5. Cursor checks (if cursor query succeeded)
+        # If cursor was a window resize handle or OLE drop-not-allowed cursor:
+        if down_cursor in _h_resize or up_cursor in _h_resize:
+            return False
+        if (_h_no and (down_cursor == _h_no or up_cursor == _h_no)):
+            return False
+
+        # 6. Check for Double-Click Selection (Selecting a single word)
+        dt = now - self._last_click_time
+        dist_from_last = abs(x_up - self._last_click_pt[0]) + abs(y_up - self._last_click_pt[1])
+        is_double_click = (dt < 0.42 and dist_from_last < 8 and dx < 6 and dy < 6)
+
+        if is_double_click:
+            # Double-clicking on buttons, tabs, or non-text UI elements is never word selection
+            if "button" in down_ctrl or "button" in up_ctrl:
+                return False
+            # If cursor handle is known and is standard arrow (IDC_ARROW), user double-clicked an icon, file, or empty space
+            if _h_arrow and (down_cursor == _h_arrow or up_cursor == _h_arrow):
+                return False
+            return True
+
+        # 7. Drag Selection Validation
+        # A. Scrollbar and Vertical Menu Scroll Rejection:
+        # Scrolling a scrollbar or scrolling a list is almost purely vertical (tiny dx, large dy).
+        # Text is written horizontally, so a drag with dx <= 8 and dy >= 12 is a scroll gesture, NOT text selection!
+        if dx <= 8 and dy >= 12:
+            return False
+
+        # B. Horizontal Scrollbar Rejection:
+        if dy <= 4 and dx >= 35 and (down_ctrl == "scrollbar" or up_ctrl == "scrollbar"):
+            return False
+
+        # C. Minimum distance for text selection:
+        # Single-line text drag requires at least 14px horizontally (approx 2-3 characters).
+        # Multi-line text drag requires at least 10px horizontally and 12px vertically.
+        if dx < 14 and not (dx >= 10 and dy >= 12):
+            return False
+
+        # D. Duration validation:
+        # Intentional text drag takes between 0.07s and 3.5s.
+        # Reject instant click jitter (< 0.07s) and long file drags / button holds (> 3.5s).
+        if duration < 0.07 or duration > 3.5:
+            return False
+
+        return True
 
     def _run_hook(self):
         self._thread_id = kernel32.GetCurrentThreadId()

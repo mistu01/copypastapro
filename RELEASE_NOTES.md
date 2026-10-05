@@ -1,10 +1,8 @@
-## 📋 Release Notes - Mistus Copy Pasta (v1.3.10)
+## 📋 Release Notes - Mistus Copy Pasta (v1.3.11)
 
 ### 🛠️ Fixes & Improvements
-- **Settings UI & Typography**: Replaced broken, overflowing "About" card with clean layout styling, eliminated Segoe UI font kerning artifacts in settings labels, and removed prominent version badge clutter from the window header.
-- **Navigation Tabs**: Expanded flyout window width and refined tab padding so all 4 tabs ("Clipboard", "Pinned", "Authenticator", "Settings") fit without label clipping on any DPI scale.
-- **Empty Pinned Slots**: Fixed stylesheet inheritance bug where placeholder slot hint text collapsed to zero height.
-- **Quick Copy on Text Selection ('C' key)**: Refined mouse selection hook and interactive indicator for single-key copying.
+- **Strict Text Selection Discrimination**: Filtered out false-positive quick copy toolbar popups during file drag-and-drop (File Explorer & Desktop), scrollbar interactions (Win32 & custom application scrollbars), context menu navigation, and non-text double-clicks.
+- **Gesture & Chrome Verification**: Added multi-layer validation including non-client hit testing (`WM_NCHITTEST`), window control classification, and directional motion geometry to ensure the toolbar appears exclusively on genuine text selections.
 
 ### 🗑️ Features Dropped
 - Input field dot menu completely removed.
