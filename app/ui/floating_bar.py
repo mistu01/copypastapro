@@ -261,7 +261,7 @@ class FloatingBar(QWidget):
             return
 
         self.chips_container.show()
-        recent_items = self.db.get_recent_items(limit=3)
+        recent_items = self.db.get_recent_items(limit=5)
         if not recent_items and not self.totp_chip.isVisible():
             empty_lbl = QLabel("Clipboard empty")
             empty_lbl.setStyleSheet("color: #64748b; font-size: 11px; padding: 0 4px;")
