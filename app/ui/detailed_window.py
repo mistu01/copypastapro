@@ -571,6 +571,18 @@ class DetailedWindow(QWidget):
         box_paste.addWidget(sub_paste)
         layout.addLayout(box_paste)
 
+        box_c_copy = QVBoxLayout()
+        box_c_copy.setSpacing(2)
+        self.chk_c_copy = QCheckBox("Quick Copy on Selection (Press 'C')")
+        self.chk_c_copy.setChecked(self.db.get_bool_setting("selection_c_copy_enabled", True))
+        self.chk_c_copy.stateChanged.connect(self._save_settings)
+        box_c_copy.addWidget(self.chk_c_copy)
+        sub_c_copy = QLabel("When text is selected on screen, show interactive copy badge and press 'C' to copy directly instead of Ctrl + C.")
+        sub_c_copy.setStyleSheet("color: #6ee7b7; font-size: 11px; margin-left: 24px;")
+        sub_c_copy.setWordWrap(True)
+        box_c_copy.addWidget(sub_c_copy)
+        layout.addLayout(box_c_copy)
+
         hist_box = QHBoxLayout()
         hist_lbl = QLabel("Maximum clipboard history items:")
         hist_lbl.setStyleSheet("color: #f0fdf4; font-size: 12px;")
@@ -666,6 +678,7 @@ class DetailedWindow(QWidget):
         self.db.set_setting("floating_bar_enabled", str(self.chk_floating_bar.isChecked()).lower())
         self.db.set_setting("floating_bar_opacity", str(self.opacity_slider.value() / 100.0))
         self.db.set_setting("auto_paste_on_select", str(self.chk_auto_paste.isChecked()).lower())
+        self.db.set_setting("selection_c_copy_enabled", str(self.chk_c_copy.isChecked()).lower())
         self.db.set_setting("max_history_count", self.combo_max_history.currentText())
         self.settings_changed.emit()
 

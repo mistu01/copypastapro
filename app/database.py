@@ -91,6 +91,7 @@ class Database:
             "floating_bar_x": "-1",
             "floating_bar_y": "-1",
             "auto_paste_on_select": "true",
+            "selection_c_copy_enabled": "true",
             "max_history_count": "200",
             "theme": "dark"
         }

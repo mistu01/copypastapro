@@ -21,6 +21,7 @@ from app.totp_manager import TOTPManager
 from app.hotkey import HotkeyListener
 from app.ui.detailed_window import DetailedWindow
 from app.ui.floating_bar import FloatingBar
+from app.ui.selection_badge import SelectionCopyBadge
 
 
 from app.icons import AppIcons
@@ -76,14 +77,23 @@ class CopyPastaApp:
         # UI Components
         self.detailed_window = DetailedWindow(self.db, self.paste_helper)
         self.floating_bar = FloatingBar(self.db, self.paste_helper)
+        self.selection_badge = SelectionCopyBadge()
 
-        # Hotkey listener (Win+V and Ctrl+Shift+V)
+        # Hotkey listener (Win+V, Ctrl+Shift+V, and 'C' key selection copy)
         self.hotkey_listener = HotkeyListener(
             intercept_win_v=self.db.get_bool_setting("intercept_win_v", True),
-            custom_hotkey_enabled=self.db.get_bool_setting("custom_hotkey_enabled", True)
+            custom_hotkey_enabled=self.db.get_bool_setting("custom_hotkey_enabled", True),
+            selection_c_copy_enabled=self.db.get_bool_setting("selection_c_copy_enabled", True)
         )
         self.hotkey_listener.hotkey_triggered.connect(self._on_hotkey_triggered)
+        self.hotkey_listener.selection_detected.connect(self._on_selection_detected)
+        self.hotkey_listener.c_copy_triggered.connect(self._on_c_copy_triggered)
+        self.hotkey_listener.selection_cancelled.connect(self._on_selection_cancelled)
         self.hotkey_listener.start()
+
+        # Selection Badge Signals
+        self.selection_badge.copy_requested.connect(self._on_c_copy_triggered)
+        self.selection_badge.dismissed.connect(lambda: self.hotkey_listener.set_selection_mode(False))
 
         # Wire Signals
         self.floating_bar.expand_requested.connect(self._on_expand_requested)
@@ -104,7 +114,7 @@ class CopyPastaApp:
 
     def _init_tray(self):
         self.tray = QSystemTrayIcon(self.app_icon, self.app)
-        self.tray.setToolTip(f"{APP_NAME} v{APP_VERSION} - Windows Clipboard Manager & 2FA")
+        self.tray.setToolTip(f"{APP_NAME} - Windows Clipboard Manager & 2FA")
 
         tray_menu = QMenu()
         tray_menu.setStyleSheet("""
@@ -207,12 +217,38 @@ class CopyPastaApp:
         except Exception as e:
             print(f"[Clipboard] Error reading clipboard: {e}")
 
+    def _on_selection_detected(self, x: int, y: int):
+        if not self.db.get_bool_setting("selection_c_copy_enabled", True):
+            return
+        pos = QPoint(x, y)
+        if self.floating_bar.isVisible() and self.floating_bar.frameGeometry().contains(pos):
+            return
+        if self.detailed_window.isVisible() and self.detailed_window.frameGeometry().contains(pos):
+            return
+
+        self.hotkey_listener.set_selection_mode(True)
+        self.selection_badge.show_at(x, y)
+
+    def _on_c_copy_triggered(self):
+        self.paste_helper.copy_selection()
+        self.selection_badge.on_copy_success()
+        self.hotkey_listener.set_selection_mode(False)
+
+    def _on_selection_cancelled(self):
+        self.hotkey_listener.set_selection_mode(False)
+        self.selection_badge.hide_badge()
+
     def _on_settings_changed(self):
         # Update hotkey listener
         self.hotkey_listener.update_settings(
             intercept_win_v=self.db.get_bool_setting("intercept_win_v", True),
-            custom_hotkey_enabled=self.db.get_bool_setting("custom_hotkey_enabled", True)
+            custom_hotkey_enabled=self.db.get_bool_setting("custom_hotkey_enabled", True),
+            selection_c_copy_enabled=self.db.get_bool_setting("selection_c_copy_enabled", True)
         )
+        if not self.db.get_bool_setting("selection_c_copy_enabled", True):
+            self.hotkey_listener.set_selection_mode(False)
+            self.selection_badge.hide_badge()
+
         # Update floating bar
         bar_enabled = self.db.get_bool_setting("floating_bar_enabled", True)
         if bar_enabled:
@@ -238,6 +274,7 @@ class CopyPastaApp:
 
     def quit(self):
         self.hotkey_listener.stop()
+        self.selection_badge.hide()
         self.tray.hide()
         self.app.quit()
 

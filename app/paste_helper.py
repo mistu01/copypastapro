@@ -198,3 +198,34 @@ class PasteHelper:
             user32.keybd_event(VK_CONTROL, scan_ctrl, KEYEVENTF_KEYUP, 0)
         except Exception as e:
             print(f"[PasteHelper] Error simulating Ctrl+V: {e}")
+
+    def copy_selection(self):
+        """Send simulated Ctrl+C keystroke with OEM hardware scan codes to copy active selection."""
+        try:
+            # Release modifier keys ONLY if they are physically held down
+            for vk in (VK_LWIN, VK_RWIN, VK_SHIFT, VK_MENU):
+                if user32.GetAsyncKeyState(vk) & 0x8000:
+                    user32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
+
+            time.sleep(0.01)
+
+            scan_ctrl = user32.MapVirtualKeyW(VK_CONTROL, 0)
+            VK_C = 0x43
+            scan_c = user32.MapVirtualKeyW(VK_C, 0)
+
+            # Press Ctrl
+            user32.keybd_event(VK_CONTROL, scan_ctrl, 0, 0)
+            time.sleep(0.015)
+
+            # Press C
+            user32.keybd_event(VK_C, scan_c, 0, 0)
+            time.sleep(0.02)
+
+            # Release C
+            user32.keybd_event(VK_C, scan_c, KEYEVENTF_KEYUP, 0)
+            time.sleep(0.015)
+
+            # Release Ctrl
+            user32.keybd_event(VK_CONTROL, scan_ctrl, KEYEVENTF_KEYUP, 0)
+        except Exception as e:
+            print(f"[PasteHelper] Error copying selection: {e}")

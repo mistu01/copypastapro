@@ -66,24 +66,7 @@ jobs:
         with:
           tag_name: v${{ env.APP_VERSION }}
           name: "Mistus Copy Pasta v${{ env.APP_VERSION }}"
-          body: |
-            ## 🚀 Mistus Copy Pasta v${{ env.APP_VERSION }}
-
-            Next-Gen Windows Clipboard Manager & 2FA Authenticator.
-
-            ### ✨ Key Features in this Release:
-            - 🟢 **ZeBeyond Cyber-Emerald Midnight Theme**: Ultra-sleek obsidian & neon mint/emerald interface.
-            - 🎯 **Input Field Quick Paste Dot**: Subtle dot appears at active text boxes across Windows.
-            - ⚡ **Hover Auto-Expansion**: Hover over the dot menu to instantly reveal your recent pastable clips without clicking.
-            - ⌨️ **Global Caret Hotkey (`Alt + V` / `Ctrl + Alt + V`)**: Press `Alt + V` anytime to summon the quick paste menu right at your text cursor.
-            - 📌 **10 Pinned Slots**: Permanent top snippets with dedicated numbered slot badges (`#1` to `#10`).
-            - 🔑 **Built-in 2FA TOTP Generator**: Real-time auto-detected codes secured with Windows DPAPI encryption.
-            - 🚀 **Desktop Floating Bar**: Draggable translucent acrylic pill showing live 2FA and recent clips.
-            - 🗖 **Detailed Flyout Window**: Modern Fluent clipboard history with live search.
-
-            ### 📦 Download & Install:
-            Download the installer below:
-            - **`Mistus_Copy_Pasta_Setup_v${{ env.APP_VERSION }}.exe`**
+          body_path: RELEASE_NOTES.md
           files: |
             Mistus_Copy_Pasta_Setup_*.exe
           draft: false
