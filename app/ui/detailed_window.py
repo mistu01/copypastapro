@@ -585,8 +585,8 @@ class DetailedWindow(QWidget):
         hist_box.addWidget(hist_lbl)
         hist_box.addStretch()
         self.combo_max_history = QComboBox()
-        self.combo_max_history.addItems(["50", "100", "200", "500"])
-        self.combo_max_history.setCurrentText(self.db.get_setting("max_history_count", "200"))
+        self.combo_max_history.addItems(["50", "100", "200", "500", "1000"])
+        self.combo_max_history.setCurrentText(self.db.get_setting("max_history_count", "500"))
         self.combo_max_history.currentTextChanged.connect(self._save_settings)
         hist_box.addWidget(self.combo_max_history)
         layout.addLayout(hist_box)
@@ -653,6 +653,7 @@ class DetailedWindow(QWidget):
         self.db.set_setting("auto_paste_on_select", str(self.chk_auto_paste.isChecked()).lower())
         self.db.set_setting("selection_c_copy_enabled", str(self.chk_c_copy.isChecked()).lower())
         self.db.set_setting("max_history_count", self.combo_max_history.currentText())
+        self.db.trim_history()
         self.settings_changed.emit()
 
     def _open_windows_clipboard_settings(self):
@@ -684,10 +685,16 @@ class DetailedWindow(QWidget):
     # ================= Clipboard List Rendering =================
     def refresh_clipboard_items(self):
         search_query = self.search_input.text().strip()
-        items = self.db.get_history(search=search_query, limit=150)
+        try:
+            max_limit = int(self.db.get_setting("max_history_count", "500"))
+        except ValueError:
+            max_limit = 500
+
+        items = self.db.get_history(search=search_query, limit=max_limit)
         pinned_items = self.db.get_pinned_items()
 
         self.tab_btn_pinned.setText(f"Pinned ({len(pinned_items)}/10)")
+        self.tab_btn_all.setText(f"Clipboard ({len(items)})")
 
         if self.stack.currentIndex() == 1:
             target_scroll = self.page_pinned
@@ -706,7 +713,7 @@ class DetailedWindow(QWidget):
                 child.widget().deleteLater()
 
         if not items:
-            empty_lbl = QLabel("No clipboard items found.")
+            empty_lbl = QLabel("No clipboard items found." if not search_query else f"No matches for '{search_query}'.")
             empty_lbl.setStyleSheet("color: #64748b; font-size: 13px; padding: 40px; text-align: center;")
             empty_lbl.setAlignment(Qt.AlignCenter)
             layout.insertWidget(0, empty_lbl)
@@ -728,13 +735,14 @@ class DetailedWindow(QWidget):
                 insert_idx += 1
 
         if recent_list:
-            hdr_recent = QLabel("RECENT CLIPPINGS")
+            hdr_title = f"MATCHING CLIPPINGS ({len(recent_list)})" if search_query else f"RECENT CLIPPINGS ({len(recent_list)})"
+            hdr_recent = QLabel(hdr_title)
             hdr_recent.setProperty("class", "SectionHeader")
             layout.insertWidget(insert_idx, hdr_recent)
             insert_idx += 1
 
-            for item in recent_list:
-                card = self._build_item_card(item)
+            for idx, item in enumerate(recent_list, 1):
+                card = self._build_item_card(item, index=idx)
                 layout.insertWidget(insert_idx, card)
                 insert_idx += 1
 
@@ -752,7 +760,7 @@ class DetailedWindow(QWidget):
 
         for slot_num in range(1, 11):
             if slot_num in pinned_by_slot:
-                card = self._build_item_card(pinned_by_slot[slot_num])
+                card = self._build_item_card(pinned_by_slot[slot_num], index=slot_num)
                 layout.insertWidget(slot_num, card)
             else:
                 placeholder = QFrame()
@@ -771,7 +779,7 @@ class DetailedWindow(QWidget):
                 ph_layout.addWidget(ph_lbl)
                 layout.insertWidget(slot_num, placeholder)
 
-    def _build_item_card(self, item: Dict[str, Any]) -> QFrame:
+    def _build_item_card(self, item: Dict[str, Any], index: Optional[int] = None) -> QFrame:
         is_pinned = bool(item["is_pinned"])
         pin_slot = item.get("pin_slot")
         content_type = item.get("content_type", "text")
@@ -788,7 +796,45 @@ class DetailedWindow(QWidget):
         meta_row = QHBoxLayout()
         meta_row.setSpacing(6)
 
-        # Type Badge Pill with crisp Lucide vector icon
+        # 1. Leading Identity Badge: Pin Slot or Sequential Entry Number (#1, #2, ...)
+        if is_pinned and pin_slot:
+            pin_pill = QFrame()
+            pin_pill.setProperty("class", "PinSlotBadge")
+            pp_layout = QHBoxLayout(pin_pill)
+            pp_layout.setContentsMargins(6, 2, 7, 2)
+            pp_layout.setSpacing(4)
+            s_icon = QLabel()
+            s_icon.setPixmap(AppIcons.pixmap("star", 10, "#ffffff"))
+            pp_layout.addWidget(s_icon)
+            s_lbl = QLabel(f"PIN #{pin_slot}")
+            s_lbl.setStyleSheet("color: #ffffff; font-weight: 700; font-size: 10px; letter-spacing: 0.5px;")
+            pp_layout.addWidget(s_lbl)
+            meta_row.addWidget(pin_pill)
+        elif is_pinned:
+            pin_pill = QFrame()
+            pin_pill.setProperty("class", "PinSlotBadge")
+            pp_layout = QHBoxLayout(pin_pill)
+            pp_layout.setContentsMargins(6, 2, 7, 2)
+            pp_layout.setSpacing(4)
+            s_icon = QLabel()
+            s_icon.setPixmap(AppIcons.pixmap("star", 10, "#ffffff"))
+            pp_layout.addWidget(s_icon)
+            s_lbl = QLabel("PIN")
+            s_lbl.setStyleSheet("color: #ffffff; font-weight: 700; font-size: 10px; letter-spacing: 0.5px;")
+            pp_layout.addWidget(s_lbl)
+            meta_row.addWidget(pin_pill)
+        elif index is not None:
+            num_pill = QFrame()
+            num_pill.setProperty("class", "EntryIndexBadge")
+            np_layout = QHBoxLayout(num_pill)
+            np_layout.setContentsMargins(6, 2, 6, 2)
+            np_layout.setSpacing(0)
+            num_lbl = QLabel(f"#{index}")
+            num_lbl.setStyleSheet("font-size: 10px; font-weight: 700; color: #38bdf8;")
+            np_layout.addWidget(num_lbl)
+            meta_row.addWidget(num_pill)
+
+        # 2. Type Badge Pill with crisp Lucide vector icon
         type_class_map = {
             "url": ("TypeBadgeUrl", "LINK", AppIcons.pixmap("link", 11, "#38bdf8")),
             "code": ("TypeBadgeCode", "CODE", AppIcons.pixmap("code", 11, "#c084fc")),
@@ -811,20 +857,6 @@ class DetailedWindow(QWidget):
         t_lbl.setStyleSheet("font-size: 10px; font-weight: 700; color: inherit;")
         tp_layout.addWidget(t_lbl)
         meta_row.addWidget(type_pill)
-
-        if is_pinned and pin_slot:
-            pin_pill = QFrame()
-            pin_pill.setProperty("class", "PinSlotBadge")
-            pp_layout = QHBoxLayout(pin_pill)
-            pp_layout.setContentsMargins(6, 2, 7, 2)
-            pp_layout.setSpacing(4)
-            s_icon = QLabel()
-            s_icon.setPixmap(AppIcons.pixmap("star", 10, "#ffffff"))
-            pp_layout.addWidget(s_icon)
-            s_lbl = QLabel(f"PIN #{pin_slot}")
-            s_lbl.setStyleSheet("color: #ffffff; font-weight: 700; font-size: 10px; letter-spacing: 0.5px;")
-            pp_layout.addWidget(s_lbl)
-            meta_row.addWidget(pin_pill)
 
         char_lbl = QLabel(f"{item['char_count']} chars")
         char_lbl.setStyleSheet("color: #64748b; font-size: 11px;")

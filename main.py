@@ -255,6 +255,7 @@ class CopyPastaApp:
         bar_enabled = self.db.get_bool_setting("floating_bar_enabled", True)
         if bar_enabled:
             self.floating_bar.update_opacity()
+            self.floating_bar.refresh_chips()
             self.floating_bar.show()
         else:
             self.floating_bar.hide()

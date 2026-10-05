@@ -210,6 +210,18 @@ QFrame.PinnedCard:hover {
     letter-spacing: 0.5px;
 }
 
+/* Entry Index Number Badge (#1, #2, ...) */
+.EntryIndexBadge, QFrame.EntryIndexBadge, QLabel.EntryIndexBadge {
+    background-color: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.30);
+    color: #38bdf8;
+    font-weight: 700;
+    font-size: 10px;
+    border-radius: 5px;
+    padding: 2px 6px;
+    letter-spacing: 0.3px;
+}
+
 /* Type Pill Badges */
 .TypeBadgeUrl, QFrame.TypeBadgeUrl, QLabel.TypeBadgeUrl {
     background-color: rgba(0, 245, 155, 0.14);

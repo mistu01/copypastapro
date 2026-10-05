@@ -210,8 +210,7 @@ class FloatingBar(QWidget):
         if not active_totp or not active_totp.get("secret"):
             self.totp_chip.hide()
             if self.is_collapsed:
-                items = self.db.get_recent_items(limit=1)
-                count = len(self.db.get_history(limit=50))
+                count = self.db.get_history_count()
                 self.minimized_lbl.setText(f"{count} clips")
                 self.minimized_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: 600; padding: 0 4px; font-family: 'Segoe UI', Arial, sans-serif;")
                 self.minimized_lbl.show()

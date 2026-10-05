@@ -92,7 +92,7 @@ class Database:
             "floating_bar_y": "-1",
             "auto_paste_on_select": "true",
             "selection_c_copy_enabled": "true",
-            "max_history_count": "200",
+            "max_history_count": "500",
             "theme": "dark"
         }
         with self._get_connection() as conn:
@@ -133,6 +133,30 @@ class Database:
             return "code"
         return "text"
 
+    def trim_history(self) -> int:
+        """
+        Trim unpinned history to max_history_count setting.
+        Never deletes pinned items.
+        """
+        try:
+            max_history = int(self.get_setting("max_history_count", "500"))
+        except ValueError:
+            max_history = 500
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                DELETE FROM clipboard_items
+                WHERE is_pinned = 0 AND id NOT IN (
+                    SELECT id FROM clipboard_items
+                    WHERE is_pinned = 0
+                    ORDER BY last_used_at DESC
+                    LIMIT ?
+                )
+            """, (max_history,))
+            conn.commit()
+            return cursor.rowcount
+
     def add_clipboard_item(self, content: str) -> Optional[int]:
         """
         Add an item to clipboard history. If it already exists, update its timestamp.
@@ -160,29 +184,31 @@ class Database:
                 VALUES (?, ?, ?, 0, NULL, ?, ?)
             """, (content, c_type, char_count, now, now))
             new_id = cursor.lastrowid
-
-            # Trim history to max_history_count (never delete pinned items)
-            try:
-                max_history = int(self.get_setting("max_history_count", "200"))
-            except ValueError:
-                max_history = 200
-
-            cursor.execute("""
-                DELETE FROM clipboard_items
-                WHERE is_pinned = 0 AND id NOT IN (
-                    SELECT id FROM clipboard_items
-                    WHERE is_pinned = 0
-                    ORDER BY last_used_at DESC
-                    LIMIT ?
-                )
-            """, (max_history,))
             conn.commit()
-            return new_id
 
-    def get_history(self, search: str = "", limit: int = 100) -> List[Dict[str, Any]]:
+        # Trim history to max_history_count (never delete pinned items)
+        self.trim_history()
+        return new_id
+
+    def get_history_count(self) -> int:
+        """Return total count of clipboard history items in the database."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM clipboard_items")
+            row = cursor.fetchone()
+            return row[0] if row else 0
+
+    def get_history(self, search: str = "", limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         Return history with pinned items first (slots 1..10), then recent items by last_used_at DESC.
+        If limit is None, defaults to the user's max_history_count setting.
         """
+        if limit is None:
+            try:
+                limit = int(self.get_setting("max_history_count", "500"))
+            except ValueError:
+                limit = 500
+
         with self._get_connection() as conn:
             cursor = conn.cursor()
             if search.strip():

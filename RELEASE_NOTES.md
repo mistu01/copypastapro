@@ -1,8 +1,6 @@
-## 📋 Release Notes - Mistus Copy Pasta (v1.3.11)
+## 📋 Release Notes - Mistus Copy Pasta (v1.3.12)
 
 ### 🛠️ Fixes & Improvements
-- **Strict Text Selection Discrimination**: Filtered out false-positive quick copy toolbar popups during file drag-and-drop (File Explorer & Desktop), scrollbar interactions (Win32 & custom application scrollbars), context menu navigation, and non-text double-clicks.
-- **Gesture & Chrome Verification**: Added multi-layer validation including non-client hit testing (`WM_NCHITTEST`), window control classification, and directional motion geometry to ensure the toolbar appears exclusively on genuine text selections.
-
-### 🗑️ Features Dropped
-- Input field dot menu completely removed.
+- **Dynamic Clipboard History Retention (Up to 1000 items)**: Resolved history limit bottlenecks where history queries and minimized floating bar counters were capped. The software now strictly adheres to the user-configured history limit (up to 500 or 1000 items).
+- **Sequential Entry Index Numbering**: Added clear, styled numbered index badges (`#1`, `#2`, ..., `#N`) to every clipping card in the clipboard list, enabling effortless browsing, tracking, and referencing.
+- **Real-Time History Statistics**: The main "Clipboard" tab and section headers now display live item counts (e.g., `Clipboard (500)`, `RECENT CLIPPINGS (500)`).
