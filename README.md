@@ -125,3 +125,11 @@ Open the detailed flyout (`Win + V` or click `⤢` on the floating bar) and navi
 - **Quick Copy on Selection**: Toggle pressing 'C' to copy selected text.
 - **Maximum history items**: Set history retention limit (50, 100, 200, 500).
 - **Clear Unpinned History**: Purge unpinned items with one click while keeping pinned items safe.
+
+---
+
+## 🔐 Code Signing
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+For detailed information on our security practices and signing pipeline, see our [Code Signing Policy](CODE_SIGNING_POLICY.md).
