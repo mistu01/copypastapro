@@ -79,7 +79,7 @@ QPushButton.NavTab {
     background-color: transparent;
     border: none;
     border-radius: 7px;
-    padding: 6px 9px;
+    padding: 6px 6px;
     color: #a7f3d0;
     font-weight: 500;
     font-size: 12px;
@@ -344,7 +344,7 @@ QScrollBar:vertical {
     border: none;
     background: transparent;
     width: 6px;
-    margin: 4px 2px 4px 0px;
+    margin: 4px 4px 4px 0px;
     border-radius: 3px;
 }
 

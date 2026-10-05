@@ -50,7 +50,7 @@ class DetailedWindow(QWidget):
         self.setObjectName("DetailedWindow")
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.resize(540, 680)
+        self.resize(560, 680)
         self.setStyleSheet(DARK_THEME_QSS)
 
         # Drop Shadow
@@ -86,10 +86,6 @@ class DetailedWindow(QWidget):
         self.title_label = QLabel(APP_NAME)
         self.title_label.setStyleSheet("font-size: 15px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px;")
         header.addWidget(self.title_label)
-
-        ver_badge = QLabel(f"v{APP_VERSION}")
-        ver_badge.setStyleSheet("background: rgba(16, 185, 129, 0.2); color: #00f59b; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(0, 245, 155, 0.4);")
-        header.addWidget(ver_badge)
 
         header.addStretch()
 
@@ -470,8 +466,8 @@ class DetailedWindow(QWidget):
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(8, 8, 16, 14)
-        layout.setSpacing(14)
+        layout.setContentsMargins(8, 6, 12, 10)
+        layout.setSpacing(11)
 
         sec1 = QLabel("SHORTCUTS & INTERCEPTION")
         sec1.setProperty("class", "SectionHeader")
@@ -484,7 +480,7 @@ class DetailedWindow(QWidget):
         self.chk_win_v.stateChanged.connect(self._save_settings)
         box_win_v.addWidget(self.chk_win_v)
         sub_win_v = QLabel("Replaces the default Windows clipboard flyout with Mistus Copy Pasta (automatically disables Windows' native clipboard flyout).")
-        sub_win_v.setStyleSheet("color: #6ee7b7; font-size: 11px; margin-left: 24px;")
+        sub_win_v.setStyleSheet("color: #6ee7b7; font-size: 12px; margin-left: 24px;")
         sub_win_v.setWordWrap(True)
         box_win_v.addWidget(sub_win_v)
 
@@ -519,7 +515,7 @@ class DetailedWindow(QWidget):
         self.chk_custom_hotkey.stateChanged.connect(self._save_settings)
         box_custom.addWidget(self.chk_custom_hotkey)
         sub_custom = QLabel("Alternative global shortcut to summon the clipboard manager.")
-        sub_custom.setStyleSheet("color: #6ee7b7; font-size: 11px; margin-left: 24px;")
+        sub_custom.setStyleSheet("color: #6ee7b7; font-size: 12px; margin-left: 24px;")
         sub_custom.setWordWrap(True)
         box_custom.addWidget(sub_custom)
         layout.addLayout(box_custom)
@@ -534,8 +530,8 @@ class DetailedWindow(QWidget):
         self.chk_floating_bar.setChecked(self.db.get_bool_setting("floating_bar_enabled", True))
         self.chk_floating_bar.stateChanged.connect(self._save_settings)
         box_bar.addWidget(self.chk_floating_bar)
-        sub_bar = QLabel("Dockable edge acrylic pill with live 2FA chip and recent clips.")
-        sub_bar.setStyleSheet("color: #6ee7b7; font-size: 11px; margin-left: 24px;")
+        sub_bar = QLabel("Dockable edge acrylic bar with live 2FA chip and recent clippings.")
+        sub_bar.setStyleSheet("color: #6ee7b7; font-size: 12px; margin-left: 24px;")
         sub_bar.setWordWrap(True)
         box_bar.addWidget(sub_bar)
         layout.addLayout(box_bar)
@@ -565,8 +561,8 @@ class DetailedWindow(QWidget):
         self.chk_auto_paste.setChecked(self.db.get_bool_setting("auto_paste_on_select", True))
         self.chk_auto_paste.stateChanged.connect(self._save_settings)
         box_paste.addWidget(self.chk_auto_paste)
-        sub_paste = QLabel("Synthesizes Ctrl + V into the previous active application on click.")
-        sub_paste.setStyleSheet("color: #6ee7b7; font-size: 11px; margin-left: 24px;")
+        sub_paste = QLabel("Pastes directly into the active window when an item is selected.")
+        sub_paste.setStyleSheet("color: #6ee7b7; font-size: 12px; margin-left: 24px;")
         sub_paste.setWordWrap(True)
         box_paste.addWidget(sub_paste)
         layout.addLayout(box_paste)
@@ -578,7 +574,7 @@ class DetailedWindow(QWidget):
         self.chk_c_copy.stateChanged.connect(self._save_settings)
         box_c_copy.addWidget(self.chk_c_copy)
         sub_c_copy = QLabel("When text is selected on screen, show interactive copy badge and press 'C' to copy directly instead of Ctrl + C.")
-        sub_c_copy.setStyleSheet("color: #6ee7b7; font-size: 11px; margin-left: 24px;")
+        sub_c_copy.setStyleSheet("color: #6ee7b7; font-size: 12px; margin-left: 24px;")
         sub_c_copy.setWordWrap(True)
         box_c_copy.addWidget(sub_c_copy)
         layout.addLayout(box_c_copy)
@@ -606,39 +602,16 @@ class DetailedWindow(QWidget):
         clear_btn.setProperty("class", "SecondaryButton")
         clear_btn.clicked.connect(self._clear_unpinned_history)
         box_clear.addWidget(clear_btn)
-        sub_clear = QLabel("Keeps your 10 pinned snippets safe while purging normal history clips.")
-        sub_clear.setStyleSheet("color: #94a3b8; font-size: 11px; margin-left: 2px;")
+        sub_clear = QLabel("Keeps your 10 pinned snippets safe while purging normal history items.")
+        sub_clear.setStyleSheet("color: #94a3b8; font-size: 12px; margin-left: 2px;")
         sub_clear.setWordWrap(True)
         box_clear.addWidget(sub_clear)
         layout.addLayout(box_clear)
 
-        sec5 = QLabel("ABOUT & VERSION")
-        sec5.setProperty("class", "SectionHeader")
-        layout.addWidget(sec5)
-
-        about_card = QFrame()
-        about_card.setStyleSheet("""
-            QFrame {
-                background: rgba(13, 24, 19, 0.65);
-                border: 1px solid rgba(16, 185, 129, 0.25);
-                border-radius: 8px;
-                padding: 10px 12px;
-            }
-        """)
-        about_layout = QVBoxLayout(about_card)
-        about_layout.setContentsMargins(8, 8, 8, 8)
-        about_layout.setSpacing(6)
-
-        app_title_lbl = QLabel(f"{APP_NAME}  •  Version {APP_VERSION}")
-        app_title_lbl.setStyleSheet("color: #00f59b; font-weight: 700; font-size: 13px;")
-        about_layout.addWidget(app_title_lbl)
-
-        app_desc_lbl = QLabel("10 Pinned Slots  •  2FA TOTP Authenticator  •  Desktop Floating Bar  •  Win + V Interceptor")
-        app_desc_lbl.setStyleSheet("color: #a7f3d0; font-size: 11px; line-height: 1.4;")
-        app_desc_lbl.setWordWrap(True)
-        about_layout.addWidget(app_desc_lbl)
-
-        layout.addWidget(about_card)
+        footer = QLabel(f"{APP_NAME} — Fast, Private & Modern Clipboard Manager")
+        footer.setStyleSheet("color: #64748b; font-size: 12px; padding: 14px 0 6px 0; background: transparent; border: none;")
+        footer.setAlignment(Qt.AlignCenter)
+        layout.addWidget(footer)
 
         layout.addStretch()
         scroll.setWidget(page)
@@ -783,17 +756,18 @@ class DetailedWindow(QWidget):
                 layout.insertWidget(slot_num, card)
             else:
                 placeholder = QFrame()
-                placeholder.setStyleSheet("""
-                    QFrame {
+                placeholder.setObjectName(f"EmptySlotFrame_{slot_num}")
+                placeholder.setStyleSheet(f"""
+                    QFrame#EmptySlotFrame_{slot_num} {{
                         background: rgba(255, 255, 255, 0.02);
                         border: 1px dashed rgba(255, 255, 255, 0.12);
                         border-radius: 9px;
-                        padding: 12px;
-                    }
+                    }}
                 """)
                 ph_layout = QHBoxLayout(placeholder)
-                ph_lbl = QLabel(f"Slot #{slot_num}: (Empty) — Click pin on any clipping to reserve here")
-                ph_lbl.setStyleSheet("color: #64748b; font-size: 12px;")
+                ph_layout.setContentsMargins(14, 10, 14, 10)
+                ph_lbl = QLabel(f"Slot #{slot_num}: (Empty) \u2014 Click pin on any clipping to reserve here")
+                ph_lbl.setStyleSheet("color: #94a3b8; font-size: 12px; background: transparent; border: none;")
                 ph_layout.addWidget(ph_lbl)
                 layout.insertWidget(slot_num, placeholder)
 
