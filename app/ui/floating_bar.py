@@ -5,7 +5,9 @@ Supports dual-sided drag handles (left & right), full draggable surface in minim
 live 2FA code chip, and smooth expand to detailed flyout.
 """
 
+import os
 import sys
+import json
 import ctypes
 from ctypes import wintypes
 from typing import List, Dict, Any, Optional
@@ -327,8 +329,22 @@ class FloatingBar(QWidget):
         self._ensure_within_screen()
 
     def _build_chip_button(self, item: Dict[str, Any]) -> QPushButton:
-        content = item["content"].strip().replace("\n", " ")
-        preview = (content[:16] + "…") if len(content) > 16 else content
+        is_img = item.get("content_type") == "image"
+        meta = {}
+        if is_img:
+            try:
+                meta = json.loads(item["content"])
+            except Exception:
+                meta = {}
+            src = meta.get("source_path", "")
+            w = meta.get("width", 0)
+            h = meta.get("height", 0)
+            preview = os.path.basename(src) if src else f"{w}×{h}"
+            if len(preview) > 12:
+                preview = preview[:12] + "…"
+        else:
+            content = item["content"].strip().replace("\n", " ")
+            preview = (content[:16] + "…") if len(content) > 16 else content
 
         btn = QPushButton()
         btn.setProperty("class", "FloatingChip")
@@ -337,6 +353,8 @@ class FloatingBar(QWidget):
         # Icon based on type or pinned
         if item.get("is_pinned"):
             btn.setIcon(AppIcons.pin_icon(14, "#f59e0b", filled=True))
+        elif is_img:
+            btn.setIcon(AppIcons.get("image", 14, "#38bdf8"))
         elif item["content_type"] == "url":
             btn.setIcon(AppIcons.link(14, "#38bdf8"))
         elif item["content_type"] == "code":
@@ -348,15 +366,27 @@ class FloatingBar(QWidget):
 
         btn.setText(f" {preview}")
 
-        btn.setToolTip(f"{content}\n\nClick to copy & paste")
+        if is_img:
+            btn.setToolTip(f"Image: {preview}\nDimensions: {meta.get('width', 0)} × {meta.get('height', 0)} px\n\nClick to copy & paste image")
+        else:
+            btn.setToolTip(f"{content}\n\nClick to copy & paste")
         btn.setCursor(Qt.PointingHandCursor)
         btn.clicked.connect(lambda _, it=item: self._on_chip_clicked(it))
         return btn
 
     def _on_chip_clicked(self, item: Dict[str, Any]):
         content = item["content"]
+        content_type = item.get("content_type", "text")
         self.db.touch_item(item["id"])
-        self.paste_helper.set_clipboard_text(content)
+
+        if content_type == "image":
+            try:
+                meta = json.loads(content)
+                self.paste_helper.set_clipboard_image(meta.get("image_path", ""), meta.get("source_path", ""))
+            except Exception as e:
+                print(f"[FloatingBar] Error setting clipboard image: {e}")
+        else:
+            self.paste_helper.set_clipboard_text(content)
 
         auto_paste = self.db.get_bool_setting("auto_paste_on_select", True)
         if auto_paste:

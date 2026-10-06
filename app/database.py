@@ -7,6 +7,7 @@ import os
 import sqlite3
 import time
 import re
+import json
 from typing import Optional, List, Dict, Tuple, Any
 from app.security import encrypt_string, decrypt_string
 
@@ -20,6 +21,17 @@ def get_db_path() -> str:
         folder = os.path.join(os.path.expanduser("~"), ".copypasta")
     os.makedirs(folder, exist_ok=True)
     return os.path.join(folder, "copypasta.db")
+
+
+def get_media_dir() -> str:
+    """Return the path to the local media directory for cached clipboard images."""
+    app_data = os.environ.get("APPDATA")
+    if app_data:
+        folder = os.path.join(app_data, "CopyPasta", "media")
+    else:
+        folder = os.path.join(os.path.expanduser("~"), ".copypasta", "media")
+    os.makedirs(folder, exist_ok=True)
+    return folder
 
 
 class Database:
@@ -137,15 +149,37 @@ class Database:
     def trim_history(self) -> int:
         """
         Trim unpinned history to max_history_count setting.
-        Never deletes pinned items.
+        Cleans up orphaned media files from disk. Never deletes pinned items.
         """
         try:
             max_history = int(self.get_setting("max_history_count", "500"))
         except ValueError:
             max_history = 500
 
+        media_dir = get_media_dir()
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            # Find image items that will be deleted
+            cursor.execute("""
+                SELECT content, content_type FROM clipboard_items
+                WHERE is_pinned = 0 AND id NOT IN (
+                    SELECT id FROM clipboard_items
+                    WHERE is_pinned = 0
+                    ORDER BY last_used_at DESC
+                    LIMIT ?
+                )
+            """, (max_history,))
+            to_delete = cursor.fetchall()
+            for row in to_delete:
+                if row["content_type"] == "image":
+                    try:
+                        meta = json.loads(row["content"])
+                        for p in (meta.get("image_path"), meta.get("thumb_path")):
+                            if p and os.path.isfile(p) and p.startswith(media_dir):
+                                os.remove(p)
+                    except Exception:
+                        pass
+
             cursor.execute("""
                 DELETE FROM clipboard_items
                 WHERE is_pinned = 0 AND id NOT IN (
@@ -188,6 +222,53 @@ class Database:
             conn.commit()
 
         # Trim history to max_history_count (never delete pinned items)
+        self.trim_history()
+        return new_id
+
+    def add_image_item(self, image_meta: Dict[str, Any]) -> Optional[int]:
+        """
+        Add an image item to clipboard history. If identical hash or image path
+        already exists, update its last_used_at timestamp.
+        """
+        image_path = image_meta.get("image_path")
+        if not image_path:
+            return None
+
+        content = json.dumps(image_meta)
+        now = time.time()
+        size_bytes = image_meta.get("size_bytes", 0)
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            image_hash = image_meta.get("hash")
+            existing = None
+            if image_hash:
+                cursor.execute(
+                    "SELECT id, is_pinned FROM clipboard_items WHERE content_type = 'image' AND content LIKE ?",
+                    (f'%"{image_hash}"%',)
+                )
+                existing = cursor.fetchone()
+
+            if not existing and image_path:
+                cursor.execute(
+                    "SELECT id, is_pinned FROM clipboard_items WHERE content_type = 'image' AND content LIKE ?",
+                    (f'%"{image_path}"%',)
+                )
+                existing = cursor.fetchone()
+
+            if existing:
+                item_id = existing["id"]
+                cursor.execute("UPDATE clipboard_items SET last_used_at = ? WHERE id = ?", (now, item_id))
+                conn.commit()
+                return item_id
+
+            cursor.execute("""
+                INSERT INTO clipboard_items (content, content_type, char_count, is_pinned, pin_slot, created_at, last_used_at)
+                VALUES (?, 'image', ?, 0, NULL, ?, ?)
+            """, (content, size_bytes, now, now))
+            new_id = cursor.lastrowid
+            conn.commit()
+
         self.trim_history()
         return new_id
 
@@ -300,17 +381,41 @@ class Database:
             return cursor.rowcount > 0
 
     def delete_item(self, item_id: int) -> bool:
-        """Delete an item from clipboard history."""
+        """Delete an item from clipboard history and remove cached media if applicable."""
+        media_dir = get_media_dir()
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            cursor.execute("SELECT content, content_type FROM clipboard_items WHERE id = ?", (item_id,))
+            row = cursor.fetchone()
+            if row and row["content_type"] == "image":
+                try:
+                    meta = json.loads(row["content"])
+                    for p in (meta.get("image_path"), meta.get("thumb_path")):
+                        if p and os.path.isfile(p) and p.startswith(media_dir):
+                            os.remove(p)
+                except Exception:
+                    pass
+
             cursor.execute("DELETE FROM clipboard_items WHERE id = ?", (item_id,))
             conn.commit()
             return cursor.rowcount > 0
 
     def clear_unpinned_history(self) -> int:
-        """Clear all non-pinned history items. Returns number of cleared items."""
+        """Clear all non-pinned history items and their media files. Returns number of cleared items."""
+        media_dir = get_media_dir()
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            cursor.execute("SELECT content, content_type FROM clipboard_items WHERE is_pinned = 0")
+            for row in cursor.fetchall():
+                if row["content_type"] == "image":
+                    try:
+                        meta = json.loads(row["content"])
+                        for p in (meta.get("image_path"), meta.get("thumb_path")):
+                            if p and os.path.isfile(p) and p.startswith(media_dir):
+                                os.remove(p)
+                    except Exception:
+                        pass
+
             cursor.execute("DELETE FROM clipboard_items WHERE is_pinned = 0")
             count = cursor.rowcount
             conn.commit()

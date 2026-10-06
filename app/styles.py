@@ -263,6 +263,23 @@ QFrame.PinnedCard:hover {
     padding: 2px 6px;
 }
 
+.TypeBadgeImage, QFrame.TypeBadgeImage, QLabel.TypeBadgeImage {
+    background-color: rgba(56, 189, 248, 0.16);
+    border: 1px solid rgba(56, 189, 248, 0.45);
+    color: #38bdf8;
+    font-weight: 700;
+    font-size: 10px;
+    border-radius: 5px;
+    padding: 2px 6px;
+}
+
+QLabel.ImageThumbnail {
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 6px;
+    background-color: #0b120d;
+    padding: 2px;
+}
+
 /* Active 2FA Hero Card - Solid clean dark obsidian emerald */
 QFrame#ActiveTotpHeroCard {
     background-color: #061710;

@@ -102,6 +102,54 @@ class PasteHelper:
                 except Exception:
                     time.sleep(0.01)
 
+    def set_clipboard_image(self, image_path: str, source_path: Optional[str] = None):
+        """
+        Set clipboard image safely in all standard Windows formats:
+        1. Native QImage (Windows CF_DIB / CF_DIBV5 for Paint, Office, Photoshop)
+        2. Raw "image/png" MIME payload for modern apps (Discord, Slack, Browsers, WhatsApp)
+        3. File URL for Windows File Explorer and file drops
+        """
+        self.last_copied_image_path = image_path
+
+        try:
+            from PySide6.QtWidgets import QApplication
+            from PySide6.QtGui import QClipboard, QImage
+            from PySide6.QtCore import QMimeData, QByteArray, QBuffer, QIODevice, QUrl
+
+            app = QApplication.instance()
+            if not app:
+                return
+            clip = app.clipboard()
+
+            if not os.path.isfile(image_path):
+                return
+
+            qimg = QImage(image_path)
+            if qimg.isNull():
+                return
+
+            mime_data = QMimeData()
+
+            # 1. Native Image (CF_DIB, CF_DIBV5)
+            mime_data.setImageData(qimg)
+
+            # 2. image/png raw payload for modern Web/Electron/Chat apps
+            ba = QByteArray()
+            buf = QBuffer(ba)
+            buf.open(QIODevice.WriteOnly)
+            qimg.save(buf, "PNG")
+            buf.close()
+            mime_data.setData("image/png", ba)
+
+            # 3. File URL if source or cached file exists (allows pasting as file in Explorer)
+            target_file = source_path if (source_path and os.path.exists(source_path)) else image_path
+            if os.path.exists(target_file):
+                mime_data.setUrls([QUrl.fromLocalFile(target_file)])
+
+            clip.setMimeData(mime_data, QClipboard.Clipboard)
+        except Exception as e:
+            print(f"[PasteHelper] Error setting clipboard image: {e}")
+
     def restore_focus_and_paste(self, target_hwnd: Optional[int] = None):
         """
         Restore focus to the target window with the selected input field

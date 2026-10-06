@@ -4,6 +4,8 @@ Windows 11 Fluent dark flyout with Real-time Search, 5-Slot Pinning,
 Live Auto-Detected 2FA TOTP Generator Hero Card, Vector Icons, and Reliable Win+V Focus.
 """
 
+import os
+import json
 import time
 import ctypes
 from typing import Optional, List, Dict, Any
@@ -14,11 +16,12 @@ from PySide6.QtWidgets import (
     QGraphicsDropShadowEffect, QApplication
 )
 from PySide6.QtCore import Qt, QTimer, Signal, QPoint, QSize
-from PySide6.QtGui import QColor, QKeySequence, QShortcut
+from PySide6.QtGui import QColor, QPixmap, QKeySequence, QShortcut
 
 from app.database import Database
 from app.totp_manager import TOTPManager
 from app.paste_helper import PasteHelper
+from app.image_helper import format_file_size
 from app.icons import AppIcons
 from app.ui.toast import Toast
 from app.ui.totp_dialog import AddTotpDialog
@@ -868,6 +871,7 @@ class DetailedWindow(QWidget):
 
         # 2. Type Badge Pill with crisp Lucide vector icon
         type_class_map = {
+            "image": ("TypeBadgeImage", "IMAGE", AppIcons.pixmap("image", 11, "#38bdf8")),
             "url": ("TypeBadgeUrl", "LINK", AppIcons.pixmap("link", 11, "#38bdf8")),
             "code": ("TypeBadgeCode", "CODE", AppIcons.pixmap("code", 11, "#c084fc")),
             "email": ("TypeBadgeEmail", "EMAIL", AppIcons.pixmap("mail", 11, "#f59e0b")),
@@ -890,7 +894,10 @@ class DetailedWindow(QWidget):
         tp_layout.addWidget(t_lbl)
         meta_row.addWidget(type_pill)
 
-        char_lbl = QLabel(f"{item['char_count']} chars")
+        if content_type == "image":
+            char_lbl = QLabel(format_file_size(item['char_count']))
+        else:
+            char_lbl = QLabel(f"{item['char_count']} chars")
         char_lbl.setStyleSheet("color: #64748b; font-size: 11px;")
         meta_row.addWidget(char_lbl)
 
@@ -933,27 +940,79 @@ class DetailedWindow(QWidget):
 
         card_layout.addLayout(meta_row)
 
-        # Content text
-        content_lbl = QLabel()
-        preview = item["content"].strip()
-        lines = preview.splitlines()
-        if len(lines) > 3:
-            preview = "\n".join(lines[:3]) + "..."
-        if len(preview) > 160:
-            preview = preview[:160] + "..."
-        content_lbl.setText(preview)
-        content_lbl.setStyleSheet("color: #f1f5f9; font-size: 13px; line-height: 1.45;")
-        content_lbl.setWordWrap(True)
-        card_layout.addWidget(content_lbl)
+        if content_type == "image":
+            try:
+                meta = json.loads(item["content"])
+            except Exception:
+                meta = {}
+
+            img_p = meta.get("thumb_path") or meta.get("image_path")
+            w = meta.get("width", 0)
+            h = meta.get("height", 0)
+            fmt = meta.get("format", "IMG")
+            src_file = meta.get("source_path", "")
+            title = os.path.basename(src_file) if src_file else f"Image {w} × {h}"
+
+            img_row = QHBoxLayout()
+            img_row.setSpacing(12)
+
+            thumb_lbl = QLabel()
+            thumb_lbl.setProperty("class", "ImageThumbnail")
+            if img_p and os.path.isfile(img_p):
+                pix = QPixmap(img_p)
+                if not pix.isNull():
+                    scaled = pix.scaled(200, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    thumb_lbl.setPixmap(scaled)
+                    thumb_lbl.setFixedSize(scaled.size())
+                else:
+                    thumb_lbl.setText("🖼️ [Image]")
+                    thumb_lbl.setStyleSheet("color: #6ee7b7; padding: 10px;")
+            else:
+                thumb_lbl.setText("🖼️ [Image]")
+                thumb_lbl.setStyleSheet("color: #6ee7b7; padding: 10px;")
+
+            img_row.addWidget(thumb_lbl)
+
+            info_col = QVBoxLayout()
+            info_col.setSpacing(4)
+            t_lbl = QLabel(title)
+            t_lbl.setStyleSheet("color: #f1f5f9; font-weight: 600; font-size: 13px;")
+            info_col.addWidget(t_lbl)
+
+            d_lbl = QLabel(f"📐 {w} × {h} px  •  {fmt.upper()}")
+            d_lbl.setStyleSheet("color: #38bdf8; font-size: 11px; font-weight: 600;")
+            info_col.addWidget(d_lbl)
+
+            action_lbl = QLabel("Click to copy & paste image")
+            action_lbl.setStyleSheet("color: #64748b; font-size: 11px; font-style: italic;")
+            info_col.addWidget(action_lbl)
+            info_col.addStretch()
+
+            img_row.addLayout(info_col)
+            img_row.addStretch()
+            card_layout.addLayout(img_row)
+        else:
+            # Content text
+            content_lbl = QLabel()
+            preview = item["content"].strip()
+            lines = preview.splitlines()
+            if len(lines) > 3:
+                preview = "\n".join(lines[:3]) + "..."
+            if len(preview) > 160:
+                preview = preview[:160] + "..."
+            content_lbl.setText(preview)
+            content_lbl.setStyleSheet("color: #f1f5f9; font-size: 13px; line-height: 1.45;")
+            content_lbl.setWordWrap(True)
+            card_layout.addWidget(content_lbl)
 
         # Ensure clicking anywhere on the card (text, badges, metadata) triggers direct paste
         for child in card.findChildren(QWidget):
             if not isinstance(child, QPushButton):
                 child.setAttribute(Qt.WA_TransparentForMouseEvents, True)
 
-        def _on_card_clicked(event, c=item["content"], i=item["id"]):
+        def _on_card_clicked(event, it=item):
             if event.button() == Qt.LeftButton:
-                self._select_and_paste(c, i)
+                self._select_and_paste(it)
 
         card.mousePressEvent = _on_card_clicked
         return card
@@ -976,9 +1035,23 @@ class DetailedWindow(QWidget):
         self.toast.show_message("Clipping deleted")
         self.pinned_changed.emit()
 
-    def _select_and_paste(self, content: str, item_id: int):
+    def _select_and_paste(self, item: Dict[str, Any]):
+        item_id = item["id"]
+        content = item["content"]
+        content_type = item.get("content_type", "text")
+
         self.db.touch_item(item_id)
-        self.paste_helper.set_clipboard_text(content)
+
+        if content_type == "image":
+            try:
+                meta = json.loads(content)
+                img_path = meta.get("image_path", "")
+                src_path = meta.get("source_path", "")
+                self.paste_helper.set_clipboard_image(img_path, src_path)
+            except Exception as e:
+                print(f"[DetailedWindow] Error setting clipboard image: {e}")
+        else:
+            self.paste_helper.set_clipboard_text(content)
 
         auto_paste = self.db.get_bool_setting("auto_paste_on_select", True)
         if not self.keep_open:

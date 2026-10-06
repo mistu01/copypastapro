@@ -18,6 +18,9 @@ from PySide6.QtCore import Qt, QPoint, QTimer
 from app.database import Database
 from app.paste_helper import PasteHelper
 from app.totp_manager import TOTPManager
+from app.image_helper import (
+    is_image_file, save_image_from_file, save_image_from_qimage, format_file_size
+)
 from app.hotkey import HotkeyListener
 from app.ui.detailed_window import DetailedWindow
 from app.ui.floating_bar import FloatingBar
@@ -111,6 +114,8 @@ class CopyPastaApp:
 
         # Clipboard Monitor
         self._last_clip_text = ""
+        self._last_image_hash = ""
+        self._last_image_source_path = ""
         self.clipboard = self.app.clipboard()
         self.clipboard.dataChanged.connect(self._on_clipboard_changed)
 
@@ -206,6 +211,48 @@ class CopyPastaApp:
 
     def _on_clipboard_changed(self):
         try:
+            mime = self.clipboard.mimeData()
+            if not mime:
+                return
+
+            # 1. Check for Image File URLs (e.g. copied from Windows File Explorer)
+            if mime.hasUrls():
+                for url in mime.urls():
+                    local_path = url.toLocalFile()
+                    if local_path and is_image_file(local_path):
+                        if getattr(self.paste_helper, "last_copied_image_path", None) == local_path:
+                            return
+                        if local_path == self._last_image_source_path:
+                            return
+                        self._last_image_source_path = local_path
+                        meta = save_image_from_file(local_path)
+                        if meta:
+                            self._last_image_hash = meta.get("hash", "")
+                            self.db.add_image_item(meta)
+                            self.floating_bar.refresh_chips()
+                            if self.detailed_window.isVisible():
+                                self.detailed_window.refresh_clipboard_items()
+                        return
+
+            # 2. Check for Direct Image Data in Clipboard (Screenshots, browser image copy, paint, etc.)
+            if mime.hasImage():
+                qimg = self.clipboard.image()
+                if not qimg.isNull() and qimg.width() > 0 and qimg.height() > 0:
+                    meta = save_image_from_qimage(qimg)
+                    if meta:
+                        img_hash = meta.get("hash", "")
+                        if img_hash == self._last_image_hash:
+                            return
+                        if getattr(self.paste_helper, "last_copied_image_hash", None) == img_hash:
+                            return
+                        self._last_image_hash = img_hash
+                        self.db.add_image_item(meta)
+                        self.floating_bar.refresh_chips()
+                        if self.detailed_window.isVisible():
+                            self.detailed_window.refresh_clipboard_items()
+                    return
+
+            # 3. Text clipping
             text = self.clipboard.text()
             if not text or not text.strip():
                 return

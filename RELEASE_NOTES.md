@@ -1,3 +1,23 @@
+## 📋 Release Notes - Mistus Copy Pasta (v1.3.16)
+
+### 🖼️ Full Image & Image File Clipboard Copy / Paste Support
+- **Support for All Known Image Formats**: Seamlessly capture and paste all image formats supported by Windows Clipboard:
+  - Raw clipboard image data: screenshots (Lightshot tool, Win+Shift+S, PrtScn), browser right-click "Copy Image", graphics apps (Paint, Photoshop, GIMP, etc.).
+  - Copied image files in Windows Explorer: `.png`, `.jpg`, `.jpeg`, `.bmp`, `.gif`, `.webp`, `.tiff`, `.ico`, `.svg`, `.jfif`, `.avif`.
+- **Rich Thumbnail Card in Detailed Window**:
+  - Crisp High-DPI thumbnail preview with subtle rounded border and aspect ratio preservation.
+  - Metadata badges: `IMAGE` pill, dimensions (`W × H px`), format tag, file size (`KB` / `MB`), and source file name.
+  - Pinning support (up to 10 pinned image slots) and deletion with automatic media cleanup.
+- **Full Windows App Paste Compatibility**:
+  - Pasting an image entry populates **Native Image (CF_DIB / CF_DIBV5)**, **raw `image/png` MIME bytes**, and **File URLs**.
+  - Flawlessly pastes into Discord, Slack, WhatsApp, Telegram, Microsoft Word/Office, Photoshop, Paint, Web Browsers, and Windows File Explorer.
+- **Desktop Floating Bar Image Chips**:
+  - Displays quick image chips with image icon, filename or dimensions, and dimensions tooltip.
+  - Single-click quick paste directly from the floating bar.
+- **Deterministic Hashing & Smart Media Cache**:
+  - Image files cached safely in `%APPDATA%/CopyPasta/media/` with SHA-256 deduplication to prevent database bloat.
+  - Automatic cleanup when history is trimmed or items are deleted.
+
 ## 📋 Release Notes - Mistus Copy Pasta (v1.3.15)
 
 ### 📸 Lightshot-Style Screenshot Capture Tool
