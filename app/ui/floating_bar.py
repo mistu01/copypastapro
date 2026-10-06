@@ -56,6 +56,7 @@ class DragHandleButton(QPushButton):
 class FloatingBar(QWidget):
     expand_requested = Signal()
     item_clicked = Signal(str)
+    totp_cleared = Signal()
 
     def __init__(self, db: Database, paste_helper: PasteHelper, parent=None):
         super().__init__(parent)
@@ -124,14 +125,33 @@ class FloatingBar(QWidget):
         self.app_icon_btn.clicked.connect(self._on_expand_clicked)
         self.pill_layout.addWidget(self.app_icon_btn)
 
-        # Live 2FA Chip Container
+        # Live 2FA Chip Container (Interactive Pill + Dismiss Cross Button)
+        self.totp_container = QFrame()
+        self.totp_container.setObjectName("FloatingTotpContainer")
+        self.totp_container_layout = QHBoxLayout(self.totp_container)
+        self.totp_container_layout.setContentsMargins(6, 2, 4, 2)
+        self.totp_container_layout.setSpacing(2)
+
         self.totp_chip = QPushButton()
-        self.totp_chip.setProperty("class", "FloatingTotpChip")
-        self.totp_chip.setIcon(AppIcons.key_icon(16, "#00f59b"))
+        self.totp_chip.setObjectName("FloatingTotpInnerBtn")
+        self.totp_chip.setIcon(AppIcons.shield_check(14, "#00f59b"))
+        self.totp_chip.setIconSize(QSize(14, 14))
         self.totp_chip.setCursor(Qt.PointingHandCursor)
         self.totp_chip.clicked.connect(self._on_totp_chip_clicked)
-        self.totp_chip.hide()
-        self.pill_layout.addWidget(self.totp_chip)
+        self.totp_container_layout.addWidget(self.totp_chip)
+
+        self.totp_close_btn = QPushButton()
+        self.totp_close_btn.setObjectName("FloatingTotpDismissBtn")
+        self.totp_close_btn.setIcon(AppIcons.close_cross(12, "#6ee7b7"))
+        self.totp_close_btn.setIconSize(QSize(12, 12))
+        self.totp_close_btn.setFixedSize(18, 18)
+        self.totp_close_btn.setToolTip("Remove active 2FA code")
+        self.totp_close_btn.setCursor(Qt.PointingHandCursor)
+        self.totp_close_btn.clicked.connect(self._on_dismiss_totp)
+        self.totp_container_layout.addWidget(self.totp_close_btn)
+
+        self.totp_container.hide()
+        self.pill_layout.addWidget(self.totp_container)
 
         # Center Chips Container for recent snippets
         self.chips_container = QWidget()
@@ -208,7 +228,7 @@ class FloatingBar(QWidget):
     def _update_totp_chip(self):
         active_totp = self.db.get_active_totp()
         if not active_totp or not active_totp.get("secret"):
-            self.totp_chip.hide()
+            self.totp_container.hide()
             if self.is_collapsed:
                 count = self.db.get_history_count()
                 self.minimized_lbl.setText(f"{count} clips")
@@ -226,15 +246,15 @@ class FloatingBar(QWidget):
 
             if self.is_collapsed:
                 # In minimized mode, show the live code in the minimized label with Segoe UI!
-                self.totp_chip.hide()
+                self.totp_container.hide()
                 self.minimized_lbl.setText(f"{formatted} ({remaining}s)")
                 self.minimized_lbl.setStyleSheet("color: #38bdf8; font-weight: 700; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; padding: 0 4px;")
                 self.minimized_lbl.show()
             else:
                 self.minimized_lbl.hide()
-                self.totp_chip.show()
+                self.totp_container.show()
         except Exception:
-            self.totp_chip.hide()
+            self.totp_container.hide()
 
     def _on_totp_chip_clicked(self):
         raw_code = self.totp_chip.property("raw_code")
@@ -245,6 +265,12 @@ class FloatingBar(QWidget):
                 self.paste_helper.restore_focus_and_paste()
             self.totp_chip.setText("✓ Copied!")
             QTimer.singleShot(1000, self._update_totp_chip)
+
+    def _on_dismiss_totp(self):
+        self.db.clear_active_totp()
+        self.totp_container.hide()
+        self.totp_cleared.emit()
+        self.refresh_chips()
 
     def refresh_chips(self):
         self._update_totp_chip()
@@ -261,12 +287,19 @@ class FloatingBar(QWidget):
             return
 
         self.chips_container.show()
-        recent_items = self.db.get_recent_items(limit=5)
-        if not recent_items and not self.totp_chip.isVisible():
+        try:
+            bar_limit = int(self.db.get_setting("floating_bar_entry_count", "5"))
+        except ValueError:
+            bar_limit = 5
+        bar_limit = max(1, min(10, bar_limit))
+
+        recent_items = self.db.get_recent_items(limit=bar_limit)
+        if not recent_items and not self.totp_container.isVisible():
             empty_lbl = QLabel("Clipboard empty")
             empty_lbl.setStyleSheet("color: #64748b; font-size: 11px; padding: 0 4px;")
             self.chips_layout.addWidget(empty_lbl)
             self.adjustSize()
+            self._ensure_within_screen()
             return
 
         for item in recent_items:
@@ -274,10 +307,11 @@ class FloatingBar(QWidget):
             self.chips_layout.addWidget(btn)
 
         self.adjustSize()
+        self._ensure_within_screen()
 
     def _build_chip_button(self, item: Dict[str, Any]) -> QPushButton:
         content = item["content"].strip().replace("\n", " ")
-        preview = (content[:18] + "…") if len(content) > 18 else content
+        preview = (content[:16] + "…") if len(content) > 16 else content
 
         btn = QPushButton()
         btn.setProperty("class", "FloatingChip")
@@ -325,7 +359,7 @@ class FloatingBar(QWidget):
             self.collapse_btn.setIcon(AppIcons.expand(16, "#38bdf8"))
             self.collapse_btn.setToolTip("Expand floating island")
             self.expand_btn.hide()
-            self.totp_chip.hide()
+            self.totp_container.hide()
             self.chips_container.hide()
             self.minimized_lbl.show()
         else:
@@ -340,6 +374,28 @@ class FloatingBar(QWidget):
         self.pill_frame.setStyle(self.pill_frame.style())  # re-apply styling
         self._update_totp_chip()
         self.adjustSize()
+        self._ensure_within_screen()
+
+    def _ensure_within_screen(self):
+        screen = QApplication.primaryScreen().availableGeometry()
+        cur_x = self.x()
+        cur_y = self.y()
+        w = self.width()
+        h = self.height()
+
+        new_x = cur_x
+        new_y = cur_y
+        if cur_x + w > screen.right() - 8:
+            new_x = screen.right() - w - 8
+        if new_x < screen.left() + 8:
+            new_x = screen.left() + 8
+        if cur_y + h > screen.bottom() - 8:
+            new_y = screen.bottom() - h - 8
+        if new_y < screen.top() + 8:
+            new_y = screen.top() + 8
+
+        if new_x != cur_x or new_y != cur_y:
+            self.move(new_x, new_y)
 
     # ================= Universal Dragging Support =================
     def start_drag(self, global_pos: QPoint):

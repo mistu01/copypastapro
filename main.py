@@ -97,6 +97,7 @@ class CopyPastaApp:
 
         # Wire Signals
         self.floating_bar.expand_requested.connect(self._on_expand_requested)
+        self.floating_bar.totp_cleared.connect(self._on_totp_cleared)
         self.detailed_window.settings_changed.connect(self._on_settings_changed)
         self.detailed_window.pinned_changed.connect(self.floating_bar.refresh_chips)
 
@@ -239,6 +240,10 @@ class CopyPastaApp:
     def _on_selection_cancelled(self):
         self.hotkey_listener.set_selection_mode(False)
         self.selection_badge.hide_badge()
+
+    def _on_totp_cleared(self):
+        if self.detailed_window.isVisible():
+            self.detailed_window.refresh_totp_accounts()
 
     def _on_settings_changed(self):
         # Update hotkey listener

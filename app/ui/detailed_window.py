@@ -551,6 +551,18 @@ class DetailedWindow(QWidget):
         op_box.addWidget(self.opacity_val_lbl)
         layout.addLayout(op_box)
 
+        bar_count_box = QHBoxLayout()
+        bar_count_lbl = QLabel("Floating bar quick-paste entries:")
+        bar_count_lbl.setStyleSheet("color: #f0fdf4; font-size: 12px;")
+        bar_count_box.addWidget(bar_count_lbl)
+        bar_count_box.addStretch()
+        self.combo_bar_entries = QComboBox()
+        self.combo_bar_entries.addItems([str(i) for i in range(1, 11)])
+        self.combo_bar_entries.setCurrentText(self.db.get_setting("floating_bar_entry_count", "5"))
+        self.combo_bar_entries.currentTextChanged.connect(self._save_settings)
+        bar_count_box.addWidget(self.combo_bar_entries)
+        layout.addLayout(bar_count_box)
+
         sec3 = QLabel("BEHAVIOR & PASTING")
         sec3.setProperty("class", "SectionHeader")
         layout.addWidget(sec3)
@@ -650,6 +662,8 @@ class DetailedWindow(QWidget):
         self.db.set_setting("custom_hotkey_enabled", str(self.chk_custom_hotkey.isChecked()).lower())
         self.db.set_setting("floating_bar_enabled", str(self.chk_floating_bar.isChecked()).lower())
         self.db.set_setting("floating_bar_opacity", str(self.opacity_slider.value() / 100.0))
+        if hasattr(self, "combo_bar_entries"):
+            self.db.set_setting("floating_bar_entry_count", self.combo_bar_entries.currentText())
         self.db.set_setting("auto_paste_on_select", str(self.chk_auto_paste.isChecked()).lower())
         self.db.set_setting("selection_c_copy_enabled", str(self.chk_c_copy.isChecked()).lower())
         self.db.set_setting("max_history_count", self.combo_max_history.currentText())

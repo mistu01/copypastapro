@@ -1,6 +1,6 @@
-## 📋 Release Notes - Mistus Copy Pasta (v1.3.13)
+## 📋 Release Notes - Mistus Copy Pasta (v1.3.14)
 
 ### 🛠️ Fixes & Improvements
-- **Expanded Floating Bar Quick-Paste Display**: Increased the number of recent paste entry chips displayed directly on the floating island from 3 to 5 for faster immediate pasting.
-- **Dynamic Clipboard History Retention (Up to 1000 items)**: Full retention and accurate count display across floating island and detailed views.
-- **Sequential Entry Index Numbering**: Numbered badges (`#1`, `#2`, ..., `#N`) across all clippings.
+- **Direct 2FA Dismiss Cross Button**: Added an inline dismiss cross (`×`) button directly inside the floating bar's 2FA pill to instantly remove the active/live 2FA code without opening the detailed window.
+- **Configurable Floating Bar Quick-Paste Entries (Up to 10)**: Added a settings option allowing users to choose anywhere from 1 to 10 recent clipping chips displayed on the floating island.
+- **Automatic Screen Boundary Clamping**: Floating island automatically adjusts its position when expanded to ensure all chips remain visible on-screen.

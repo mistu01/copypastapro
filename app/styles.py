@@ -316,7 +316,41 @@ QPushButton.FloatingChip:hover {
     color: #ffffff;
 }
 
-/* Floating Bar 2FA Live Chip */
+/* Floating Bar 2FA Live Chip Container */
+QFrame#FloatingTotpContainer {
+    background-color: rgba(5, 150, 105, 0.22);
+    border: 1px solid rgba(0, 245, 155, 0.55);
+    border-radius: 12px;
+}
+
+QPushButton#FloatingTotpInnerBtn {
+    background: transparent;
+    border: none;
+    color: #00f59b;
+    font-family: "Segoe UI", Arial, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 4px 3px 6px;
+    text-align: left;
+}
+
+QPushButton#FloatingTotpInnerBtn:hover {
+    color: #ffffff;
+}
+
+QPushButton#FloatingTotpDismissBtn {
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    padding: 1px;
+    margin-right: 3px;
+}
+
+QPushButton#FloatingTotpDismissBtn:hover {
+    background-color: rgba(244, 63, 94, 0.35);
+}
+
+/* Floating Bar 2FA Live Chip Legacy */
 QPushButton.FloatingTotpChip {
     background-color: rgba(5, 150, 105, 0.22);
     border: 1px solid rgba(0, 245, 155, 0.55);
