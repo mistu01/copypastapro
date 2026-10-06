@@ -207,13 +207,26 @@ class CopyPastaApp:
 
     def _on_tray_activated(self, reason):
         if reason in (QSystemTrayIcon.DoubleClick, QSystemTrayIcon.Trigger):
-            self.toggle_detailed_window()
+            bar_enabled = self.db.get_bool_setting("floating_bar_enabled", True)
+            if not bar_enabled or not self.floating_bar.isVisible():
+                self.restore_floating_bar()
+            else:
+                self.toggle_detailed_window()
+
+    def restore_floating_bar(self):
+        self.db.set_setting("floating_bar_enabled", "true")
+        self.floating_bar.update_opacity()
+        self.floating_bar.refresh_chips()
+        self.floating_bar._ensure_within_screen()
+        self.floating_bar.show()
+        self.floating_bar.raise_()
+        self._update_tray_menu()
 
     def _on_hotkey_triggered(self, key_name: str):
         self.toggle_detailed_window()
 
     def toggle_detailed_window(self):
-        if self.detailed_window.isVisible():
+        if self.detailed_window.isVisible() and self.detailed_window.isActiveWindow():
             self.detailed_window.hide_window()
         else:
             self.detailed_window.show_flyout()
@@ -352,7 +365,9 @@ class CopyPastaApp:
         if bar_enabled:
             self.floating_bar.update_opacity()
             self.floating_bar.refresh_chips()
+            self.floating_bar._ensure_within_screen()
             self.floating_bar.show()
+            self.floating_bar.raise_()
         else:
             self.floating_bar.hide()
         self._update_tray_menu()
@@ -380,9 +395,12 @@ class CopyPastaApp:
 
     def _toggle_floating_bar(self):
         cur = self.db.get_bool_setting("floating_bar_enabled", True)
-        new_val = not cur
-        self.db.set_setting("floating_bar_enabled", str(new_val).lower())
-        self._on_settings_changed()
+        if not cur or not self.floating_bar.isVisible():
+            self.restore_floating_bar()
+        else:
+            self.db.set_setting("floating_bar_enabled", "false")
+            self.floating_bar.hide()
+            self._update_tray_menu()
 
     def _open_2fa_dialog(self):
         self.detailed_window.show_flyout()

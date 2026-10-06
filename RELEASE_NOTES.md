@@ -1,3 +1,12 @@
+## 📋 Release Notes - Mistus Copy Pasta (v1.3.19)
+
+### 🖱️ Contextual System Tray Activation
+- **Smart System Tray Icon Click**:
+  - When the Desktop Pill Bar is minimized to the system tray, clicking (or double-clicking) the system tray icon immediately **restores the Pill Bar** to the desktop at its exact saved coordinates.
+  - When the Desktop Pill Bar is active and visible on screen, clicking the system tray icon **opens / restores the Full Detailed Manager** (`Win + V` flyout) to the foreground.
+- **Flawless Focus & Window Restoration**: Brings the Detailed Manager directly to the front if backgrounded, or toggles it cleanly when clicked while in focus.
+- **Seamless State Sync**: Restoring the Pill Bar via the system tray icon automatically updates all tray menus, database settings, and settings tab toggles.
+
 ## 📋 Release Notes - Mistus Copy Pasta (v1.3.18)
 
 ### 📥 Minimize Compact Pill Display to System Tray
