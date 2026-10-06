@@ -1,3 +1,15 @@
+## 📋 Release Notes - Mistus Copy Pasta (v1.3.18)
+
+### 📥 Minimize Compact Pill Display to System Tray
+- **Dedicated Minimize to Tray Button**: Added a dedicated minimize button (`-` minus icon) directly on the compact pill display and floating bar, allowing instant 1-click minimization to the Windows system tray.
+- **Persistent Mode Memory**: Remembers whether the floating bar was collapsed into the compact pill or expanded to the full bar, seamlessly restoring in the preferred mode.
+- **Right-Click Context Menu Options**: Right-clicking the compact pill or floating bar provides direct options to "Minimize to System Tray" as well as toggle between "Collapse to Compact Pill" and "Expand to Floating Bar".
+- **Dynamic System Tray Context Menu**:
+  - Automatically reflects state: dynamically shows **"Minimize Desktop Bar to Tray"** when visible, and **"Show Desktop Bar / Island"** when minimized.
+  - One-click restoration from system tray icon context menu anytime.
+- **Friendly Windows Tray Notification**: Displays a desktop notification upon minimization confirming that the island is safely residing in the system tray and showing how to restore it.
+- **Settings Tab Synchronization**: Opening the Settings tab automatically syncs the "Show desktop floating bar" checkbox with the live state.
+
 ## 📋 Release Notes - Mistus Copy Pasta (v1.3.17)
 
 ### 📸 Screenshot Direct Clipboard History Integration & UI Polish

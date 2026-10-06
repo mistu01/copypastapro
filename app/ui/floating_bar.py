@@ -60,12 +60,13 @@ class FloatingBar(QWidget):
     item_clicked = Signal(str)
     totp_cleared = Signal()
     screenshot_requested = Signal()
+    minimized_to_tray = Signal()
 
     def __init__(self, db: Database, paste_helper: PasteHelper, parent=None):
         super().__init__(parent)
         self.db = db
         self.paste_helper = paste_helper
-        self.is_collapsed = False
+        self.is_collapsed = self.db.get_bool_setting("floating_bar_collapsed", False)
         self._dragging = False
         self._drag_start_pos = QPoint()
 
@@ -167,7 +168,7 @@ class FloatingBar(QWidget):
         self.minimized_lbl = QLabel()
         self.minimized_lbl.setStyleSheet("color: #6ee7b7; font-size: 11px; font-weight: 600; padding: 0 4px; font-family: 'Segoe UI', Arial, sans-serif;")
         self.minimized_lbl.setCursor(Qt.PointingHandCursor)
-        self.minimized_lbl.mousePressEvent = lambda e: self._on_minimized_lbl_clicked() if e.button() == Qt.LeftButton else None
+        self.minimized_lbl.mousePressEvent = self._on_minimized_lbl_mouse_press
         self.minimized_lbl.hide()
         self.pill_layout.addWidget(self.minimized_lbl)
 
@@ -192,14 +193,24 @@ class FloatingBar(QWidget):
         self.expand_btn.clicked.connect(self._on_expand_clicked)
         self.pill_layout.addWidget(self.expand_btn)
 
-        # Collapse / Minimize toggle button
+        # Collapse / Expand toggle button
         self.collapse_btn = QPushButton()
         self.collapse_btn.setIcon(AppIcons.collapse(16, "#6ee7b7"))
-        self.collapse_btn.setToolTip("Minimize floating bar")
+        self.collapse_btn.setToolTip("Collapse floating bar to pill")
         self.collapse_btn.setProperty("class", "IconButton")
         self.collapse_btn.setFixedSize(22, 22)
         self.collapse_btn.clicked.connect(self._toggle_collapse)
         self.pill_layout.addWidget(self.collapse_btn)
+
+        # Minimize to Tray button
+        self.tray_minimize_btn = QPushButton()
+        self.tray_minimize_btn.setIcon(AppIcons.minimize(14, "#6ee7b7"))
+        self.tray_minimize_btn.setToolTip("Minimize pill to system tray" if self.is_collapsed else "Minimize to system tray")
+        self.tray_minimize_btn.setProperty("class", "IconButton")
+        self.tray_minimize_btn.setFixedSize(22, 22)
+        self.tray_minimize_btn.setCursor(Qt.PointingHandCursor)
+        self.tray_minimize_btn.clicked.connect(self._minimize_to_tray)
+        self.pill_layout.addWidget(self.tray_minimize_btn)
 
         # Right Drag Handle (Resolves right side dragging!)
         self.right_grip = DragHandleButton(self, "Drag to move • Right-click for options")
@@ -207,6 +218,15 @@ class FloatingBar(QWidget):
         self.pill_layout.addWidget(self.right_grip)
 
         self.main_layout.addWidget(self.pill_frame)
+
+        if self.is_collapsed:
+            self.pill_frame.setObjectName("MinimizedFloatingContainer")
+            self.collapse_btn.setIcon(AppIcons.expand(16, "#38bdf8"))
+            self.collapse_btn.setToolTip("Expand floating island")
+            self.expand_btn.hide()
+            self.totp_container.hide()
+            self.chips_container.hide()
+            self.minimized_lbl.show()
 
         self.update_opacity()
         self.refresh_chips()
@@ -223,6 +243,12 @@ class FloatingBar(QWidget):
         except ValueError:
             opacity = 0.95
         self.setWindowOpacity(opacity)
+
+    def _on_minimized_lbl_mouse_press(self, event):
+        if event.button() == Qt.LeftButton:
+            self._on_minimized_lbl_clicked()
+        elif event.button() == Qt.RightButton:
+            self._show_context_menu(event.globalPosition().toPoint())
 
     def _on_minimized_lbl_clicked(self):
         active_totp = self.db.get_active_totp()
@@ -402,10 +428,13 @@ class FloatingBar(QWidget):
 
     def _toggle_collapse(self):
         self.is_collapsed = not self.is_collapsed
+        self.db.set_setting("floating_bar_collapsed", str(self.is_collapsed).lower())
         if self.is_collapsed:
             self.pill_frame.setObjectName("MinimizedFloatingContainer")
             self.collapse_btn.setIcon(AppIcons.expand(16, "#38bdf8"))
             self.collapse_btn.setToolTip("Expand floating island")
+            if hasattr(self, "tray_minimize_btn"):
+                self.tray_minimize_btn.setToolTip("Minimize pill to system tray")
             self.expand_btn.hide()
             self.totp_container.hide()
             self.chips_container.hide()
@@ -417,8 +446,10 @@ class FloatingBar(QWidget):
                 self.minimized_totp_close_btn.hide()
         else:
             self.pill_frame.setObjectName("FloatingBarContainer")
-            self.collapse_btn.setIcon(AppIcons.collapse(16, "#94a3b8"))
-            self.collapse_btn.setToolTip("Minimize floating island")
+            self.collapse_btn.setIcon(AppIcons.collapse(16, "#6ee7b7"))
+            self.collapse_btn.setToolTip("Collapse floating island to pill")
+            if hasattr(self, "tray_minimize_btn"):
+                self.tray_minimize_btn.setToolTip("Minimize floating bar to system tray")
             self.expand_btn.show()
             self.minimized_lbl.hide()
             self.minimized_totp_close_btn.hide()
@@ -505,8 +536,8 @@ class FloatingBar(QWidget):
         menu = QMenu(self)
         menu.setStyleSheet("""
             QMenu {
-                background-color: #1e222d;
-                border: 1px solid rgba(255, 255, 255, 0.15);
+                background-color: #080d0a;
+                border: 1px solid rgba(16, 185, 129, 0.25);
                 border-radius: 8px;
                 padding: 6px;
                 color: #ffffff;
@@ -516,15 +547,24 @@ class FloatingBar(QWidget):
                 border-radius: 4px;
             }
             QMenu::item:selected {
-                background-color: #0284c7;
+                background-color: #059669;
             }
         """)
 
-        act_expand = menu.addAction(AppIcons.clipboard(16, "#38bdf8"), "Open Detailed Manager (Win + V)")
+        act_expand = menu.addAction(AppIcons.clipboard(16, "#00f59b"), "Open Detailed Manager (Win + V)")
         act_expand.triggered.connect(self._on_expand_clicked)
 
-        act_shot = menu.addAction(AppIcons.camera(16, "#00f59b"), "Take Screenshot (PrtScn)")
+        act_shot = menu.addAction(AppIcons.camera(16, "#38bdf8"), "Take Screenshot (PrtScn)")
         act_shot.triggered.connect(self.screenshot_requested.emit)
+
+        menu.addSeparator()
+
+        if self.is_collapsed:
+            act_toggle = menu.addAction(AppIcons.expand(16, "#34d399"), "Expand to Floating Bar")
+            act_toggle.triggered.connect(self._toggle_collapse)
+        else:
+            act_toggle = menu.addAction(AppIcons.collapse(16, "#34d399"), "Collapse to Compact Pill")
+            act_toggle.triggered.connect(self._toggle_collapse)
 
         menu.addSeparator()
 
@@ -536,8 +576,8 @@ class FloatingBar(QWidget):
 
         menu.addSeparator()
 
-        act_hide = menu.addAction(AppIcons.close_cross(14, "#f43f5e"), "Hide Floating Bar")
-        act_hide.triggered.connect(self._hide_bar)
+        act_tray = menu.addAction(AppIcons.minimize(14, "#f59e0b"), "Minimize to System Tray")
+        act_tray.triggered.connect(self._minimize_to_tray)
 
         menu.exec(global_pos)
 
@@ -553,6 +593,10 @@ class FloatingBar(QWidget):
         self.db.set_setting("floating_bar_x", str(self.x()))
         self.db.set_setting("floating_bar_y", str(self.y()))
 
-    def _hide_bar(self):
+    def _minimize_to_tray(self):
         self.db.set_setting("floating_bar_enabled", "false")
         self.hide()
+        self.minimized_to_tray.emit()
+
+    def _hide_bar(self):
+        self._minimize_to_tray()

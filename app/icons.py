@@ -137,6 +137,10 @@ class AppIcons(metaclass=AppIconsMeta):
 
     @classmethod
     def collapse(cls, size: int = 16, color: str = "#94a3b8") -> QIcon:
+        return cls.get("collapse", size, color)
+
+    @classmethod
+    def minimize(cls, size: int = 16, color: str = "#94a3b8") -> QIcon:
         return cls.get("minus", size, color)
 
     @classmethod

@@ -110,6 +110,7 @@ class CopyPastaApp:
         self.floating_bar.expand_requested.connect(self._on_expand_requested)
         self.floating_bar.totp_cleared.connect(self._on_totp_cleared)
         self.floating_bar.screenshot_requested.connect(self._trigger_screenshot)
+        self.floating_bar.minimized_to_tray.connect(self._on_bar_minimized_to_tray)
         self.detailed_window.screenshot_requested.connect(self._trigger_screenshot)
         self.detailed_window.settings_changed.connect(self._on_settings_changed)
         self.detailed_window.pinned_changed.connect(self.floating_bar.refresh_chips)
@@ -132,8 +133,8 @@ class CopyPastaApp:
         self.tray = QSystemTrayIcon(self.app_icon, self.app)
         self.tray.setToolTip(f"{APP_NAME} - Windows Clipboard Manager & 2FA")
 
-        tray_menu = QMenu()
-        tray_menu.setStyleSheet("""
+        self.tray_menu = QMenu()
+        self.tray_menu.setStyleSheet("""
             QMenu {
                 background-color: #080d0a;
                 border: 1px solid rgba(16, 185, 129, 0.25);
@@ -151,28 +152,30 @@ class CopyPastaApp:
             }
         """)
 
-        act_open = tray_menu.addAction(AppIcons.clipboard(16, "#00f59b"), "Open Clipboard Manager (Win + V)")
+        act_open = self.tray_menu.addAction(AppIcons.clipboard(16, "#00f59b"), "Open Clipboard Manager (Win + V)")
         act_open.triggered.connect(self.toggle_detailed_window)
 
-        act_screenshot = tray_menu.addAction(AppIcons.camera(16, "#38bdf8"), "Take Screenshot (PrtScn)")
+        act_screenshot = self.tray_menu.addAction(AppIcons.camera(16, "#38bdf8"), "Take Screenshot (PrtScn)")
         act_screenshot.triggered.connect(self._trigger_screenshot)
 
-        act_toggle_bar = tray_menu.addAction(AppIcons.expand(16, "#34d399"), "Toggle Floating Bar")
-        act_toggle_bar.triggered.connect(self._toggle_floating_bar)
+        self.act_toggle_bar = self.tray_menu.addAction(AppIcons.expand(16, "#34d399"), "Show Desktop Bar / Island")
+        self.act_toggle_bar.triggered.connect(self._toggle_floating_bar)
 
-        act_add_2fa = tray_menu.addAction(AppIcons.shield_check(16, "#10b981"), "Add 2FA Account...")
+        act_add_2fa = self.tray_menu.addAction(AppIcons.shield_check(16, "#10b981"), "Add 2FA Account...")
         act_add_2fa.triggered.connect(self._open_2fa_dialog)
 
-        tray_menu.addSeparator()
+        self.tray_menu.addSeparator()
 
-        act_settings = tray_menu.addAction(AppIcons.settings(16, "#a7f3d0"), "Settings")
+        act_settings = self.tray_menu.addAction(AppIcons.settings(16, "#a7f3d0"), "Settings")
         act_settings.triggered.connect(self._open_settings)
 
-        act_exit = tray_menu.addAction(AppIcons.close_cross(16, "#f43f5e"), f"Exit {APP_NAME}")
+        act_exit = self.tray_menu.addAction(AppIcons.close_cross(16, "#f43f5e"), f"Exit {APP_NAME}")
         act_exit.triggered.connect(self.quit)
 
-        self.tray.setContextMenu(tray_menu)
+        self.tray_menu.aboutToShow.connect(self._update_tray_menu)
+        self.tray.setContextMenu(self.tray_menu)
         self.tray.activated.connect(self._on_tray_activated)
+        self._update_tray_menu()
         self.tray.show()
 
     def _trigger_screenshot(self):
@@ -352,6 +355,28 @@ class CopyPastaApp:
             self.floating_bar.show()
         else:
             self.floating_bar.hide()
+        self._update_tray_menu()
+
+    def _update_tray_menu(self):
+        if not hasattr(self, "act_toggle_bar") or not self.act_toggle_bar:
+            return
+        bar_enabled = self.db.get_bool_setting("floating_bar_enabled", True)
+        if bar_enabled and self.floating_bar.isVisible():
+            self.act_toggle_bar.setText("Minimize Desktop Bar to Tray")
+            self.act_toggle_bar.setIcon(AppIcons.minimize(16, "#94a3b8"))
+        else:
+            self.act_toggle_bar.setText("Show Desktop Bar / Island")
+            self.act_toggle_bar.setIcon(AppIcons.expand(16, "#00f59b"))
+
+    def _on_bar_minimized_to_tray(self):
+        self._update_tray_menu()
+        if hasattr(self, "tray") and self.tray.isVisible():
+            self.tray.showMessage(
+                APP_NAME,
+                "Desktop island minimized to system tray.\nClick tray icon or use tray menu to restore.",
+                QSystemTrayIcon.Information,
+                2500,
+            )
 
     def _toggle_floating_bar(self):
         cur = self.db.get_bool_setting("floating_bar_enabled", True)

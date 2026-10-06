@@ -1380,6 +1380,10 @@ class DetailedWindow(QWidget):
         self.search_input.clear()
         self.refresh_clipboard_items()
         self.refresh_totp_accounts()
+        if hasattr(self, "chk_floating_bar"):
+            self.chk_floating_bar.blockSignals(True)
+            self.chk_floating_bar.setChecked(self.db.get_bool_setting("floating_bar_enabled", True))
+            self.chk_floating_bar.blockSignals(False)
 
         # Screen clamping
         screen = QApplication.primaryScreen().availableGeometry()
