@@ -1,3 +1,15 @@
+## 📋 Release Notes - Mistus Copy Pasta (v1.3.17)
+
+### 📸 Screenshot Direct Clipboard History Integration & UI Polish
+- **Instant Clipboard Entry on Copy**: Capturing a screenshot via the **Copy** button (or `Enter` / `Ctrl + C` / double-click) instantly adds the screenshot directly into the clipboard manager history as a regular entry with a thumbnail preview, dimensions (`W × H px`), and format tag.
+- **Copy Button Prominently Positioned Beside Save**: The Lightshot-style floating action bar features a prominent Cyber-Emerald **Copy** button placed right beside **Save**, with clear vector icons and tooltips.
+- **Save to History on Save**: Saving a screenshot to a file now also automatically registers it in CopyPasta's history for effortless instant re-pasting.
+- **Omnipresent Screenshot Shortcuts**:
+  - Dedicated global **PrintScreen** (`PrtScn`) key interception.
+  - New **"Snipping"** camera button in the Detailed Window header.
+  - New **"Take Screenshot (PrtScn)"** action in Desktop Floating Bar right-click menu.
+  - Quick action in System Tray menu.
+
 ## 📋 Release Notes - Mistus Copy Pasta (v1.3.16)
 
 ### 🖼️ Full Image & Image File Clipboard Copy / Paste Support

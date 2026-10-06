@@ -37,6 +37,7 @@ class DetailedWindow(QWidget):
     item_selected = Signal(str)
     settings_changed = Signal()
     pinned_changed = Signal()
+    screenshot_requested = Signal()
 
     def __init__(self, db: Database, paste_helper: PasteHelper, parent=None):
         super().__init__(parent)
@@ -95,6 +96,14 @@ class DetailedWindow(QWidget):
         header.addWidget(self.title_label)
 
         header.addStretch()
+
+        self.screenshot_btn = QPushButton(" Snipping")
+        self.screenshot_btn.setIcon(AppIcons.camera(15, "#00f59b"))
+        self.screenshot_btn.setIconSize(QSize(15, 15))
+        self.screenshot_btn.setProperty("class", "NavTab")
+        self.screenshot_btn.setToolTip("Lightshot Screen Capture (PrintScreen)")
+        self.screenshot_btn.clicked.connect(self._on_screenshot_clicked)
+        header.addWidget(self.screenshot_btn)
 
         self.pin_window_btn = QPushButton(" Keep Open")
         self.pin_window_btn.setIcon(AppIcons.pin_icon(15, "#94a3b8"))
@@ -664,6 +673,10 @@ class DetailedWindow(QWidget):
             self.refresh_clipboard_items()
         elif index == 2:
             self.refresh_totp_accounts()
+
+    def _on_screenshot_clicked(self):
+        self.hide_window()
+        self.screenshot_requested.emit()
 
     def _toggle_keep_open(self):
         self.keep_open = self.pin_window_btn.isChecked()

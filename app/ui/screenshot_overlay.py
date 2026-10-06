@@ -255,17 +255,17 @@ class ScreenshotOverlay(QWidget):
         self.save_btn.clicked.connect(self.save_screenshot)
         act_layout.addWidget(self.save_btn)
 
-        # Copy button (Primary Action)
+        # Copy button (Primary Action, right beside Save!)
         self.copy_btn = QPushButton(" Copy")
-        self.copy_btn.setIcon(AppIcons.check(14, "#00f59b"))
-        self.copy_btn.setToolTip("Copy to clipboard & close (Ctrl + C / Enter / Double-click)")
+        self.copy_btn.setIcon(AppIcons.copy_icon(14, "#00f59b"))
+        self.copy_btn.setToolTip("Copy to clipboard & history (Ctrl + C / Enter / Double-click)")
         self.copy_btn.setCursor(Qt.PointingHandCursor)
-        self.copy_btn.setStyleSheet("color: #00f59b; font-weight: bold;")
+        self.copy_btn.setStyleSheet("color: #00f59b; font-weight: bold; background-color: rgba(0, 245, 155, 0.15); border: 1px solid rgba(0, 245, 155, 0.4);")
         self.copy_btn.clicked.connect(self.copy_screenshot)
         act_layout.addWidget(self.copy_btn)
 
         # Cancel / Close button
-        self.cancel_btn = QPushButton()
+        self.cancel_btn = QPushButton(" Close")
         self.cancel_btn.setObjectName("CloseBtn")
         self.cancel_btn.setIcon(AppIcons.close_cross(14, "#f43f5e"))
         self.cancel_btn.setToolTip("Cancel & close (Esc)")

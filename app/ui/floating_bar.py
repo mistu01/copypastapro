@@ -59,6 +59,7 @@ class FloatingBar(QWidget):
     expand_requested = Signal()
     item_clicked = Signal(str)
     totp_cleared = Signal()
+    screenshot_requested = Signal()
 
     def __init__(self, db: Database, paste_helper: PasteHelper, parent=None):
         super().__init__(parent)
@@ -521,6 +522,9 @@ class FloatingBar(QWidget):
 
         act_expand = menu.addAction(AppIcons.clipboard(16, "#38bdf8"), "Open Detailed Manager (Win + V)")
         act_expand.triggered.connect(self._on_expand_clicked)
+
+        act_shot = menu.addAction(AppIcons.camera(16, "#00f59b"), "Take Screenshot (PrtScn)")
+        act_shot.triggered.connect(self.screenshot_requested.emit)
 
         menu.addSeparator()
 

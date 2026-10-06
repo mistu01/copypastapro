@@ -109,6 +109,8 @@ class CopyPastaApp:
         # Wire Signals
         self.floating_bar.expand_requested.connect(self._on_expand_requested)
         self.floating_bar.totp_cleared.connect(self._on_totp_cleared)
+        self.floating_bar.screenshot_requested.connect(self._trigger_screenshot)
+        self.detailed_window.screenshot_requested.connect(self._trigger_screenshot)
         self.detailed_window.settings_changed.connect(self._on_settings_changed)
         self.detailed_window.pinned_changed.connect(self.floating_bar.refresh_chips)
 
@@ -179,9 +181,25 @@ class CopyPastaApp:
         self.screenshot_overlay.capture_screen()
 
     def _on_screenshot_captured(self, pixmap: QPixmap):
-        self.detailed_window.toast.show_message("📸 Screenshot copied to clipboard!")
+        qimg = pixmap.toImage()
+        meta = save_image_from_qimage(qimg)
+        if meta:
+            self._last_image_hash = meta.get("hash", "")
+            self.paste_helper.set_clipboard_image(meta["image_path"])
+            self.db.add_image_item(meta)
+            self.floating_bar.refresh_chips()
+            if self.detailed_window.isVisible():
+                self.detailed_window.refresh_clipboard_items()
+        self.detailed_window.toast.show_message("📸 Screenshot copied to clipboard & history!")
 
     def _on_screenshot_saved(self, filepath: str):
+        meta = save_image_from_file(filepath)
+        if meta:
+            self._last_image_hash = meta.get("hash", "")
+            self.db.add_image_item(meta)
+            self.floating_bar.refresh_chips()
+            if self.detailed_window.isVisible():
+                self.detailed_window.refresh_clipboard_items()
         self.detailed_window.toast.show_message(f"💾 Saved screenshot: {os.path.basename(filepath)}")
 
     def _on_tray_activated(self, reason):
