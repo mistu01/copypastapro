@@ -388,20 +388,24 @@ QScrollArea {
 
 QScrollBar:vertical {
     border: none;
-    background: transparent;
-    width: 6px;
-    margin: 4px 4px 4px 0px;
-    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.15);
+    width: 10px;
+    margin: 3px 2px 3px 0px;
+    border-radius: 5px;
 }
 
 QScrollBar::handle:vertical {
-    background: rgba(16, 185, 129, 0.25);
-    min-height: 25px;
-    border-radius: 3px;
+    background: rgba(16, 185, 129, 0.35);
+    min-height: 28px;
+    border-radius: 5px;
 }
 
 QScrollBar::handle:vertical:hover {
-    background: rgba(0, 245, 155, 0.45);
+    background: rgba(0, 245, 155, 0.65);
+}
+
+QScrollBar::handle:vertical:pressed {
+    background: rgba(0, 245, 155, 0.85);
 }
 
 QScrollBar:horizontal {

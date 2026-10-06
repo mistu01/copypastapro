@@ -22,6 +22,7 @@ from app.hotkey import HotkeyListener
 from app.ui.detailed_window import DetailedWindow
 from app.ui.floating_bar import FloatingBar
 from app.ui.selection_badge import SelectionCopyBadge
+from app.ui.screenshot_overlay import ScreenshotOverlay
 
 
 from app.icons import AppIcons
@@ -78,22 +79,29 @@ class CopyPastaApp:
         self.detailed_window = DetailedWindow(self.db, self.paste_helper)
         self.floating_bar = FloatingBar(self.db, self.paste_helper)
         self.selection_badge = SelectionCopyBadge()
+        self.screenshot_overlay = ScreenshotOverlay()
 
-        # Hotkey listener (Win+V, Ctrl+Shift+V, and 'C' key selection copy)
+        # Hotkey listener (Win+V, Ctrl+Shift+V, 'C' selection copy, and PrintScreen screenshot)
         self.hotkey_listener = HotkeyListener(
             intercept_win_v=self.db.get_bool_setting("intercept_win_v", True),
             custom_hotkey_enabled=self.db.get_bool_setting("custom_hotkey_enabled", True),
-            selection_c_copy_enabled=self.db.get_bool_setting("selection_c_copy_enabled", True)
+            selection_c_copy_enabled=self.db.get_bool_setting("selection_c_copy_enabled", True),
+            screenshot_enabled=self.db.get_bool_setting("screenshot_enabled", True)
         )
         self.hotkey_listener.hotkey_triggered.connect(self._on_hotkey_triggered)
         self.hotkey_listener.selection_detected.connect(self._on_selection_detected)
         self.hotkey_listener.c_copy_triggered.connect(self._on_c_copy_triggered)
         self.hotkey_listener.selection_cancelled.connect(self._on_selection_cancelled)
+        self.hotkey_listener.screenshot_triggered.connect(self._trigger_screenshot)
         self.hotkey_listener.start()
 
         # Selection Badge Signals
         self.selection_badge.copy_requested.connect(self._on_c_copy_triggered)
         self.selection_badge.dismissed.connect(lambda: self.hotkey_listener.set_selection_mode(False))
+
+        # Screenshot Overlay Signals
+        self.screenshot_overlay.screenshot_captured.connect(self._on_screenshot_captured)
+        self.screenshot_overlay.screenshot_saved.connect(self._on_screenshot_saved)
 
         # Wire Signals
         self.floating_bar.expand_requested.connect(self._on_expand_requested)
@@ -139,6 +147,9 @@ class CopyPastaApp:
         act_open = tray_menu.addAction(AppIcons.clipboard(16, "#00f59b"), "Open Clipboard Manager (Win + V)")
         act_open.triggered.connect(self.toggle_detailed_window)
 
+        act_screenshot = tray_menu.addAction(AppIcons.camera(16, "#38bdf8"), "Take Screenshot (PrtScn)")
+        act_screenshot.triggered.connect(self._trigger_screenshot)
+
         act_toggle_bar = tray_menu.addAction(AppIcons.expand(16, "#34d399"), "Toggle Floating Bar")
         act_toggle_bar.triggered.connect(self._toggle_floating_bar)
 
@@ -156,6 +167,17 @@ class CopyPastaApp:
         self.tray.setContextMenu(tray_menu)
         self.tray.activated.connect(self._on_tray_activated)
         self.tray.show()
+
+    def _trigger_screenshot(self):
+        if self.detailed_window.isVisible():
+            self.detailed_window.hide_window()
+        self.screenshot_overlay.capture_screen()
+
+    def _on_screenshot_captured(self, pixmap: QPixmap):
+        self.detailed_window.toast.show_message("📸 Screenshot copied to clipboard!")
+
+    def _on_screenshot_saved(self, filepath: str):
+        self.detailed_window.toast.show_message(f"💾 Saved screenshot: {os.path.basename(filepath)}")
 
     def _on_tray_activated(self, reason):
         if reason in (QSystemTrayIcon.DoubleClick, QSystemTrayIcon.Trigger):
@@ -250,7 +272,8 @@ class CopyPastaApp:
         self.hotkey_listener.update_settings(
             intercept_win_v=self.db.get_bool_setting("intercept_win_v", True),
             custom_hotkey_enabled=self.db.get_bool_setting("custom_hotkey_enabled", True),
-            selection_c_copy_enabled=self.db.get_bool_setting("selection_c_copy_enabled", True)
+            selection_c_copy_enabled=self.db.get_bool_setting("selection_c_copy_enabled", True),
+            screenshot_enabled=self.db.get_bool_setting("screenshot_enabled", True)
         )
         if not self.db.get_bool_setting("selection_c_copy_enabled", True):
             self.hotkey_listener.set_selection_mode(False)
@@ -283,6 +306,7 @@ class CopyPastaApp:
     def quit(self):
         self.hotkey_listener.stop()
         self.selection_badge.hide()
+        self.screenshot_overlay.close()
         self.tray.hide()
         self.app.quit()
 

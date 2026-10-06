@@ -37,6 +37,7 @@ VK_MENU = 0x12  # Alt key
 VK_V = 0x56
 VK_C = 0x43
 VK_ESCAPE = 0x1B
+VK_SNAPSHOT = 0x2C  # Print Screen / Snapshot key
 
 # Structure for low-level keyboard input
 class KBDLLHOOKSTRUCT(ctypes.Structure):
@@ -217,17 +218,20 @@ class HotkeyListener(QObject):
     selection_detected = Signal(int, int)  # screen x, screen y
     c_copy_triggered = Signal()
     selection_cancelled = Signal()
+    screenshot_triggered = Signal()
 
     def __init__(
         self,
         intercept_win_v: bool = True,
         custom_hotkey_enabled: bool = True,
-        selection_c_copy_enabled: bool = True
+        selection_c_copy_enabled: bool = True,
+        screenshot_enabled: bool = True
     ):
         super().__init__()
         self.intercept_win_v = intercept_win_v
         self.custom_hotkey_enabled = custom_hotkey_enabled
         self.selection_c_copy_enabled = selection_c_copy_enabled
+        self.screenshot_enabled = screenshot_enabled
 
         self.hook_id = None
         self.mouse_hook_id = None
@@ -263,11 +267,13 @@ class HotkeyListener(QObject):
         self,
         intercept_win_v: bool,
         custom_hotkey_enabled: bool,
-        selection_c_copy_enabled: bool = True
+        selection_c_copy_enabled: bool = True,
+        screenshot_enabled: bool = True
     ):
         self.intercept_win_v = intercept_win_v
         self.custom_hotkey_enabled = custom_hotkey_enabled
         self.selection_c_copy_enabled = selection_c_copy_enabled
+        self.screenshot_enabled = screenshot_enabled
         configure_windows_clipboard_override(self.intercept_win_v)
 
     def start(self):
@@ -350,6 +356,13 @@ class HotkeyListener(QObject):
                             if is_down:
                                 self.hotkey_triggered.emit("Ctrl+Shift+V")
                             return 1
+
+                # 4. Intercept Print Screen (VK_SNAPSHOT = 0x2C)
+                if kb.vkCode == VK_SNAPSHOT:
+                    if self.screenshot_enabled:
+                        if is_down:
+                            self.screenshot_triggered.emit()
+                        return 1
 
             except Exception:
                 pass

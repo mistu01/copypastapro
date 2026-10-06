@@ -168,6 +168,18 @@ class FloatingBar(QWidget):
         self.minimized_lbl.hide()
         self.pill_layout.addWidget(self.minimized_lbl)
 
+        # Minimized 2FA Dismiss Cross Button (shown only when collapsed with active 2FA)
+        self.minimized_totp_close_btn = QPushButton()
+        self.minimized_totp_close_btn.setObjectName("FloatingTotpDismissBtn")
+        self.minimized_totp_close_btn.setIcon(AppIcons.close_cross(11, "#6ee7b7"))
+        self.minimized_totp_close_btn.setIconSize(QSize(11, 11))
+        self.minimized_totp_close_btn.setFixedSize(18, 18)
+        self.minimized_totp_close_btn.setToolTip("Remove active 2FA code")
+        self.minimized_totp_close_btn.setCursor(Qt.PointingHandCursor)
+        self.minimized_totp_close_btn.clicked.connect(self._on_dismiss_totp)
+        self.minimized_totp_close_btn.hide()
+        self.pill_layout.addWidget(self.minimized_totp_close_btn)
+
         # Expand to detailed flyout button
         self.expand_btn = QPushButton()
         self.expand_btn.setIcon(AppIcons.expand(16, "#00f59b"))
@@ -229,6 +241,7 @@ class FloatingBar(QWidget):
         active_totp = self.db.get_active_totp()
         if not active_totp or not active_totp.get("secret"):
             self.totp_container.hide()
+            self.minimized_totp_close_btn.hide()
             if self.is_collapsed:
                 count = self.db.get_history_count()
                 self.minimized_lbl.setText(f"{count} clips")
@@ -250,11 +263,14 @@ class FloatingBar(QWidget):
                 self.minimized_lbl.setText(f"{formatted} ({remaining}s)")
                 self.minimized_lbl.setStyleSheet("color: #38bdf8; font-weight: 700; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; padding: 0 4px;")
                 self.minimized_lbl.show()
+                self.minimized_totp_close_btn.show()
             else:
                 self.minimized_lbl.hide()
+                self.minimized_totp_close_btn.hide()
                 self.totp_container.show()
         except Exception:
             self.totp_container.hide()
+            self.minimized_totp_close_btn.hide()
 
     def _on_totp_chip_clicked(self):
         raw_code = self.totp_chip.property("raw_code")
@@ -269,6 +285,7 @@ class FloatingBar(QWidget):
     def _on_dismiss_totp(self):
         self.db.clear_active_totp()
         self.totp_container.hide()
+        self.minimized_totp_close_btn.hide()
         self.totp_cleared.emit()
         self.refresh_chips()
 
@@ -362,12 +379,18 @@ class FloatingBar(QWidget):
             self.totp_container.hide()
             self.chips_container.hide()
             self.minimized_lbl.show()
+            active_totp = self.db.get_active_totp()
+            if active_totp and active_totp.get("secret"):
+                self.minimized_totp_close_btn.show()
+            else:
+                self.minimized_totp_close_btn.hide()
         else:
             self.pill_frame.setObjectName("FloatingBarContainer")
             self.collapse_btn.setIcon(AppIcons.collapse(16, "#94a3b8"))
             self.collapse_btn.setToolTip("Minimize floating island")
             self.expand_btn.show()
             self.minimized_lbl.hide()
+            self.minimized_totp_close_btn.hide()
             self.chips_container.show()
             self.refresh_chips()
 

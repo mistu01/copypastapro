@@ -41,6 +41,8 @@ class DetailedWindow(QWidget):
         self.paste_helper = paste_helper
         self.keep_open = False
         self._ignore_focus_change = False
+        self._dragging = False
+        self._drag_start_pos = QPoint()
 
         self._init_window()
         self._init_ui()
@@ -81,10 +83,12 @@ class DetailedWindow(QWidget):
 
         title_icon = QLabel()
         title_icon.setPixmap(AppIcons.clipboard(20, "#00f59b").pixmap(20, 20))
+        title_icon.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         header.addWidget(title_icon)
 
         self.title_label = QLabel(APP_NAME)
         self.title_label.setStyleSheet("font-size: 15px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px;")
+        self.title_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         header.addWidget(self.title_label)
 
         header.addStretch()
@@ -520,6 +524,18 @@ class DetailedWindow(QWidget):
         box_custom.addWidget(sub_custom)
         layout.addLayout(box_custom)
 
+        box_shot = QVBoxLayout()
+        box_shot.setSpacing(2)
+        self.chk_screenshot = QCheckBox("Lightshot Screen Capture on Print Screen key")
+        self.chk_screenshot.setChecked(self.db.get_bool_setting("screenshot_enabled", True))
+        self.chk_screenshot.stateChanged.connect(self._save_settings)
+        box_shot.addWidget(self.chk_screenshot)
+        sub_shot = QLabel("Intercept PrintScreen to select screen areas, annotate with Pen, Arrow, Rect & Text, copy or save instantly.")
+        sub_shot.setStyleSheet("color: #6ee7b7; font-size: 12px; margin-left: 24px;")
+        sub_shot.setWordWrap(True)
+        box_shot.addWidget(sub_shot)
+        layout.addLayout(box_shot)
+
         sec2 = QLabel("DESKTOP FLOATING BAR")
         sec2.setProperty("class", "SectionHeader")
         layout.addWidget(sec2)
@@ -660,6 +676,8 @@ class DetailedWindow(QWidget):
     def _save_settings(self):
         self.db.set_setting("intercept_win_v", str(self.chk_win_v.isChecked()).lower())
         self.db.set_setting("custom_hotkey_enabled", str(self.chk_custom_hotkey.isChecked()).lower())
+        if hasattr(self, "chk_screenshot"):
+            self.db.set_setting("screenshot_enabled", str(self.chk_screenshot.isChecked()).lower())
         self.db.set_setting("floating_bar_enabled", str(self.chk_floating_bar.isChecked()).lower())
         self.db.set_setting("floating_bar_opacity", str(self.opacity_slider.value() / 100.0))
         if hasattr(self, "combo_bar_entries"):
@@ -1335,3 +1353,29 @@ class DetailedWindow(QWidget):
             active_popup = QApplication.activePopupWidget() or QApplication.activeModalWidget()
             if not active_popup:
                 self.hide()
+
+    # ================= Draggable Title Bar =================
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            pos = event.position().toPoint()
+            # If clicked in the top title bar header area (Y <= 60)
+            if pos.y() <= 60:
+                self._dragging = True
+                self._drag_start_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._dragging and event.buttons() & Qt.LeftButton:
+            self.move(event.globalPosition().toPoint() - self._drag_start_pos)
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self._dragging:
+            self._dragging = False
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
