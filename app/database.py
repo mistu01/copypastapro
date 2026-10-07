@@ -309,16 +309,22 @@ class Database:
                 """, (limit,))
             return [dict(row) for row in cursor.fetchall()]
 
-    def get_pinned_items(self) -> List[Dict[str, Any]]:
-        """Return the pinned items (up to 10), ordered by pin_slot ASC."""
+    def get_pinned_items(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Return the pinned items (up to configured limit), ordered by pin_slot ASC."""
+        if limit is None:
+            try:
+                limit = int(self.get_setting("max_pinned_slots", "10"))
+            except ValueError:
+                limit = 10
+        limit = max(1, min(10, limit))
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT * FROM clipboard_items
                 WHERE is_pinned = 1
                 ORDER BY pin_slot ASC, last_used_at DESC
-                LIMIT 10
-            """)
+                LIMIT ?
+            """, (limit,))
             return [dict(row) for row in cursor.fetchall()]
 
     def get_recent_items(self, limit: int = 5) -> List[Dict[str, Any]]:
@@ -334,9 +340,15 @@ class Database:
 
     def pin_item(self, item_id: int) -> Tuple[bool, str]:
         """
-        Pin an item to the top. Maximum 10 entries can be pinned.
+        Pin an item to the top. Maximum configured entries can be pinned (1..10).
         Returns (success: bool, message: str)
         """
+        try:
+            max_slots = int(self.get_setting("max_pinned_slots", "10"))
+        except ValueError:
+            max_slots = 10
+        max_slots = max(1, min(10, max_slots))
+
         with self._get_connection() as conn:
             cursor = conn.cursor()
             # Check if item exists and if already pinned
@@ -350,12 +362,12 @@ class Database:
             # Check total pinned count
             cursor.execute("SELECT pin_slot FROM clipboard_items WHERE is_pinned = 1")
             used_slots = [row["pin_slot"] for row in cursor.fetchall() if row["pin_slot"] is not None]
-            if len(used_slots) >= 10:
-                return False, "Maximum of 10 items can be pinned. Please unpin an item first."
+            if len(used_slots) >= max_slots:
+                return False, f"Maximum of {max_slots} items can be pinned. Please unpin an item first."
 
-            # Find lowest available slot 1..10
+            # Find lowest available slot 1..max_slots
             available_slot = 1
-            for slot in range(1, 11):
+            for slot in range(1, max_slots + 1):
                 if slot not in used_slots:
                     available_slot = slot
                     break

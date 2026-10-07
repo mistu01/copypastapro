@@ -1,3 +1,14 @@
+## 📋 Release Notes - Mistus Copy Pasta (v1.3.21)
+
+### 📌 Configurable Pinned Entries Limit (1 to 10)
+- **User-Configurable Pinned Slots Setting**: Added a dedicated setting under Settings > Behavior & Pasting allowing users to customize the number of pinned items shown, from **1 to 10** (default: 10).
+- **Dynamic Main Window Display**:
+  - Automatically updates the navigation tab label: `Pinned (X/N)`.
+  - Dynamically limits the pinned clippings section header in the Clipboard tab: `PINNED CLIPPINGS (X/N)`.
+  - Dynamically sizes the Pinned tab slot view: `N PINNED SLOTS (X OF N USED)` and renders exactly `N` interactive slots (Slots #1 through #N).
+  - Pin button tooltips dynamically reflect the active maximum: `Pin to top (max N)`.
+- **Database & State Synchronization**: Pinned items query and slot allocation enforce the chosen limit while safely keeping all clippings preserved.
+
 ## 📋 Release Notes - Mistus Copy Pasta (v1.3.20)
 
 ### ⚡ Streamlined Setup & Clean Installation Experience

@@ -52,6 +52,13 @@ class DetailedWindow(QWidget):
         self._init_ui()
         self._setup_totp_timer()
 
+    def _get_max_pinned_slots(self) -> int:
+        try:
+            val = int(self.db.get_setting("max_pinned_slots", "10"))
+            return max(1, min(10, val))
+        except ValueError:
+            return 10
+
     def _init_window(self):
         self.setObjectName("DetailedWindow")
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
@@ -151,7 +158,8 @@ class DetailedWindow(QWidget):
         self.tab_btn_all.clicked.connect(lambda: self._switch_tab(0))
         tab_nav.addWidget(self.tab_btn_all)
 
-        self.tab_btn_pinned = QPushButton("Pinned (0/10)")
+        max_pins = self._get_max_pinned_slots()
+        self.tab_btn_pinned = QPushButton(f"Pinned (0/{max_pins})")
         self.tab_btn_pinned.setIcon(AppIcons.pin_icon(15, "#f59e0b", filled=True))
         self.tab_btn_pinned.setIconSize(QSize(15, 15))
         self.tab_btn_pinned.setProperty("class", "NavTab")
@@ -619,6 +627,18 @@ class DetailedWindow(QWidget):
         box_c_copy.addWidget(sub_c_copy)
         layout.addLayout(box_c_copy)
 
+        pinned_box = QHBoxLayout()
+        pinned_lbl = QLabel("Maximum pinned entries to display:")
+        pinned_lbl.setStyleSheet("color: #f0fdf4; font-size: 12px;")
+        pinned_box.addWidget(pinned_lbl)
+        pinned_box.addStretch()
+        self.combo_pinned_entries = QComboBox()
+        self.combo_pinned_entries.addItems([str(i) for i in range(1, 11)])
+        self.combo_pinned_entries.setCurrentText(str(self._get_max_pinned_slots()))
+        self.combo_pinned_entries.currentTextChanged.connect(self._save_settings)
+        pinned_box.addWidget(self.combo_pinned_entries)
+        layout.addLayout(pinned_box)
+
         hist_box = QHBoxLayout()
         hist_lbl = QLabel("Maximum clipboard history items:")
         hist_lbl.setStyleSheet("color: #f0fdf4; font-size: 12px;")
@@ -642,7 +662,7 @@ class DetailedWindow(QWidget):
         clear_btn.setProperty("class", "SecondaryButton")
         clear_btn.clicked.connect(self._clear_unpinned_history)
         box_clear.addWidget(clear_btn)
-        sub_clear = QLabel("Keeps your 10 pinned snippets safe while purging normal history items.")
+        sub_clear = QLabel("Keeps your pinned snippets safe while purging normal history items.")
         sub_clear.setStyleSheet("color: #94a3b8; font-size: 12px; margin-left: 2px;")
         sub_clear.setWordWrap(True)
         box_clear.addWidget(sub_clear)
@@ -673,6 +693,11 @@ class DetailedWindow(QWidget):
             self.refresh_clipboard_items()
         elif index == 2:
             self.refresh_totp_accounts()
+        elif index == 3:
+            if hasattr(self, "combo_pinned_entries"):
+                self.combo_pinned_entries.blockSignals(True)
+                self.combo_pinned_entries.setCurrentText(str(self._get_max_pinned_slots()))
+                self.combo_pinned_entries.blockSignals(False)
 
     def _on_screenshot_clicked(self):
         self.hide_window()
@@ -698,10 +723,13 @@ class DetailedWindow(QWidget):
         self.db.set_setting("floating_bar_opacity", str(self.opacity_slider.value() / 100.0))
         if hasattr(self, "combo_bar_entries"):
             self.db.set_setting("floating_bar_entry_count", self.combo_bar_entries.currentText())
+        if hasattr(self, "combo_pinned_entries"):
+            self.db.set_setting("max_pinned_slots", self.combo_pinned_entries.currentText())
         self.db.set_setting("auto_paste_on_select", str(self.chk_auto_paste.isChecked()).lower())
         self.db.set_setting("selection_c_copy_enabled", str(self.chk_c_copy.isChecked()).lower())
         self.db.set_setting("max_history_count", self.combo_max_history.currentText())
         self.db.trim_history()
+        self.refresh_clipboard_items()
         self.settings_changed.emit()
 
     def _open_windows_clipboard_settings(self):
@@ -738,17 +766,18 @@ class DetailedWindow(QWidget):
         except ValueError:
             max_limit = 500
 
+        max_pins = self._get_max_pinned_slots()
         items = self.db.get_history(search=search_query, limit=max_limit)
-        pinned_items = self.db.get_pinned_items()
+        pinned_items = self.db.get_pinned_items(limit=max_pins)
 
-        self.tab_btn_pinned.setText(f"Pinned ({len(pinned_items)}/10)")
+        self.tab_btn_pinned.setText(f"Pinned ({len(pinned_items)}/{max_pins})")
         self.tab_btn_all.setText(f"Clipboard ({len(items)})")
 
         if self.stack.currentIndex() == 1:
             target_scroll = self.page_pinned
             target_container = target_scroll.widget()
             layout = target_container.layout()
-            self._render_pinned_slots_view(layout, pinned_items)
+            self._render_pinned_slots_view(layout, pinned_items, max_pins)
             return
 
         target_scroll = self.page_all
@@ -767,12 +796,12 @@ class DetailedWindow(QWidget):
             layout.insertWidget(0, empty_lbl)
             return
 
-        pinned_list = [it for it in items if it["is_pinned"]]
+        pinned_list = [it for it in items if it["is_pinned"]][:max_pins]
         recent_list = [it for it in items if not it["is_pinned"]]
 
         insert_idx = 0
         if pinned_list:
-            hdr_pinned = QLabel(f"PINNED CLIPPINGS ({len(pinned_list)}/10)")
+            hdr_pinned = QLabel(f"PINNED CLIPPINGS ({len(pinned_list)}/{max_pins})")
             hdr_pinned.setProperty("class", "SectionHeader")
             layout.insertWidget(insert_idx, hdr_pinned)
             insert_idx += 1
@@ -794,19 +823,22 @@ class DetailedWindow(QWidget):
                 layout.insertWidget(insert_idx, card)
                 insert_idx += 1
 
-    def _render_pinned_slots_view(self, layout, pinned_items: List[Dict[str, Any]]):
+    def _render_pinned_slots_view(self, layout, pinned_items: List[Dict[str, Any]], max_pins: Optional[int] = None):
+        if max_pins is None:
+            max_pins = self._get_max_pinned_slots()
+
         while layout.count() > 1:
             child = layout.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
 
-        hdr = QLabel(f"10 PINNED SLOTS ({len(pinned_items)} OF 10 USED)")
+        hdr = QLabel(f"{max_pins} PINNED SLOTS ({len(pinned_items)} OF {max_pins} USED)")
         hdr.setProperty("class", "SectionHeader")
         layout.insertWidget(0, hdr)
 
-        pinned_by_slot = {it["pin_slot"]: it for it in pinned_items if it.get("pin_slot")}
+        pinned_by_slot = {it["pin_slot"]: it for it in pinned_items if it.get("pin_slot") and it["pin_slot"] <= max_pins}
 
-        for slot_num in range(1, 11):
+        for slot_num in range(1, max_pins + 1):
             if slot_num in pinned_by_slot:
                 card = self._build_item_card(pinned_by_slot[slot_num], index=slot_num)
                 layout.insertWidget(slot_num, card)
@@ -937,7 +969,8 @@ class DetailedWindow(QWidget):
         pin_btn.setIconSize(QSize(16, 16))
         pin_btn.setProperty("class", "IconButton")
         pin_btn.setFixedSize(26, 26)
-        pin_btn.setToolTip("Unpin from top" if is_pinned else "Pin to top (max 10)")
+        max_pins = self._get_max_pinned_slots()
+        pin_btn.setToolTip("Unpin from top" if is_pinned else f"Pin to top (max {max_pins})")
         pin_btn.clicked.connect(lambda _, it=item: self._toggle_pin(it))
         meta_row.addWidget(pin_btn)
 
@@ -1384,6 +1417,10 @@ class DetailedWindow(QWidget):
             self.chk_floating_bar.blockSignals(True)
             self.chk_floating_bar.setChecked(self.db.get_bool_setting("floating_bar_enabled", True))
             self.chk_floating_bar.blockSignals(False)
+        if hasattr(self, "combo_pinned_entries"):
+            self.combo_pinned_entries.blockSignals(True)
+            self.combo_pinned_entries.setCurrentText(str(self._get_max_pinned_slots()))
+            self.combo_pinned_entries.blockSignals(False)
 
         # Screen clamping
         screen = QApplication.primaryScreen().availableGeometry()
