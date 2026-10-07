@@ -114,6 +114,7 @@ class CopyPastaApp:
         self.detailed_window.screenshot_requested.connect(self._trigger_screenshot)
         self.detailed_window.settings_changed.connect(self._on_settings_changed)
         self.detailed_window.pinned_changed.connect(self.floating_bar.refresh_chips)
+        self.floating_bar.pinned_changed.connect(self.detailed_window.refresh_clipboard_items)
 
         # Clipboard Monitor
         self._last_clip_text = ""

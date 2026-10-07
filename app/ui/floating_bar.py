@@ -13,10 +13,11 @@ from ctypes import wintypes
 from typing import List, Dict, Any, Optional
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QLabel, QPushButton, QFrame,
-    QMenu, QApplication
+    QMenu, QApplication, QToolTip
 )
-from PySide6.QtCore import Qt, QPoint, Signal, QTimer, QSize
+from PySide6.QtCore import Qt, QPoint, Signal, QTimer, QSize, QRect
 from PySide6.QtGui import QAction, QCursor
+
 
 from app.database import Database
 from app.totp_manager import TOTPManager
@@ -61,6 +62,7 @@ class FloatingBar(QWidget):
     totp_cleared = Signal()
     screenshot_requested = Signal()
     minimized_to_tray = Signal()
+    pinned_changed = Signal()
 
     def __init__(self, db: Database, paste_helper: PasteHelper, parent=None):
         super().__init__(parent)
@@ -339,7 +341,7 @@ class FloatingBar(QWidget):
             bar_limit = 5
         bar_limit = max(1, min(10, bar_limit))
 
-        recent_items = self.db.get_recent_items(limit=bar_limit)
+        recent_items = self.db.get_floating_bar_items(bar_limit=bar_limit)
         if not recent_items and not self.totp_container.isVisible():
             empty_lbl = QLabel("Clipboard empty")
             empty_lbl.setStyleSheet("color: #64748b; font-size: 11px; padding: 0 4px;")
@@ -374,11 +376,15 @@ class FloatingBar(QWidget):
             preview = (content[:16] + "…") if len(content) > 16 else content
 
         btn = QPushButton()
-        btn.setProperty("class", "FloatingChip")
+        is_pinned = bool(item.get("is_pinned"))
+        if is_pinned:
+            btn.setProperty("class", "FloatingChipPinned")
+        else:
+            btn.setProperty("class", "FloatingChip")
         btn.setIconSize(QSize(14, 14))
 
         # Icon based on type or pinned
-        if item.get("is_pinned"):
+        if is_pinned:
             btn.setIcon(AppIcons.pin_icon(14, "#f59e0b", filled=True))
         elif is_img:
             btn.setIcon(AppIcons.get("image", 14, "#38bdf8"))
@@ -393,13 +399,98 @@ class FloatingBar(QWidget):
 
         btn.setText(f" {preview}")
 
+        pin_label = "📌 Pinned • " if is_pinned else ""
         if is_img:
-            btn.setToolTip(f"Image: {preview}\nDimensions: {meta.get('width', 0)} × {meta.get('height', 0)} px\n\nClick to copy & paste image")
+            btn.setToolTip(f"{pin_label}Image: {preview}\nDimensions: {meta.get('width', 0)} × {meta.get('height', 0)} px\n\nClick to copy & paste • Right-click for options")
         else:
-            btn.setToolTip(f"{content}\n\nClick to copy & paste")
+            btn.setToolTip(f"{pin_label}{content}\n\nClick to copy & paste • Right-click for options")
         btn.setCursor(Qt.PointingHandCursor)
         btn.clicked.connect(lambda _, it=item: self._on_chip_clicked(it))
+
+        btn.setContextMenuPolicy(Qt.CustomContextMenu)
+        btn.customContextMenuRequested.connect(lambda pos, it=item, b=btn: self._show_chip_context_menu(pos, it, b))
         return btn
+
+    def _show_chip_context_menu(self, pos: QPoint, item: Dict[str, Any], chip_btn: QPushButton):
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #080d0a;
+                border: 1px solid rgba(16, 185, 129, 0.25);
+                border-radius: 8px;
+                padding: 6px;
+                color: #f0fdf4;
+            }
+            QMenu::item {
+                padding: 6px 18px;
+                border-radius: 4px;
+                font-size: 12px;
+            }
+            QMenu::item:selected {
+                background-color: #059669;
+                color: #ffffff;
+            }
+        """)
+
+        is_pinned = bool(item.get("is_pinned"))
+        if is_pinned:
+            act_pin = menu.addAction(AppIcons.pin_icon(14, "#f59e0b", filled=False), "Unpin from Pill Bar")
+            act_pin.triggered.connect(lambda: self._unpin_chip(item))
+        else:
+            act_pin = menu.addAction(AppIcons.pin_icon(14, "#f59e0b", filled=True), "Pin to Pill Bar")
+            act_pin.triggered.connect(lambda: self._pin_chip(item, chip_btn))
+
+        menu.addSeparator()
+
+        act_paste = menu.addAction(AppIcons.clipboard(14, "#00f59b"), "Copy & Paste")
+        act_paste.triggered.connect(lambda: self._on_chip_clicked(item))
+
+        act_del = menu.addAction(AppIcons.trash(14, "#f43f5e"), "Delete Clipping")
+        act_del.triggered.connect(lambda: self._delete_chip(item))
+
+        menu.exec(chip_btn.mapToGlobal(pos))
+
+    def _pin_chip(self, item: Dict[str, Any], chip_btn: Optional[QPushButton] = None):
+        item_id = item["id"]
+        try:
+            bar_limit = int(self.db.get_setting("floating_bar_entry_count", "5"))
+        except ValueError:
+            bar_limit = 5
+        bar_limit = max(1, min(10, bar_limit))
+        max_pill_pinned = 2 if bar_limit >= 5 else 1
+
+        pinned_items = self.db.get_pinned_items(limit=max_pill_pinned)
+        if len(pinned_items) >= max_pill_pinned:
+            tip_msg = (
+                f"Pill bar allows up to {max_pill_pinned} pinned {'item' if max_pill_pinned == 1 else 'items'} "
+                f"({'5+' if bar_limit >= 5 else '<5'} entries enabled).\n"
+                f"Please unpin an item first."
+            )
+            if chip_btn:
+                pos = chip_btn.mapToGlobal(QPoint(0, chip_btn.height() + 4))
+                QToolTip.showText(pos, tip_msg, chip_btn, QRect(), 3500)
+            return
+
+        success, msg = self.db.pin_item(item_id)
+        if success:
+            self.refresh_chips()
+            self.pinned_changed.emit()
+        else:
+            if chip_btn:
+                pos = chip_btn.mapToGlobal(QPoint(0, chip_btn.height() + 4))
+                QToolTip.showText(pos, msg, chip_btn, QRect(), 3000)
+
+    def _unpin_chip(self, item: Dict[str, Any]):
+        item_id = item["id"]
+        self.db.unpin_item(item_id)
+        self.refresh_chips()
+        self.pinned_changed.emit()
+
+    def _delete_chip(self, item: Dict[str, Any]):
+        item_id = item["id"]
+        self.db.delete_item(item_id)
+        self.refresh_chips()
+        self.pinned_changed.emit()
 
     def _on_chip_clicked(self, item: Dict[str, Any]):
         content = item["content"]
@@ -420,8 +511,8 @@ class FloatingBar(QWidget):
             self.paste_helper.restore_focus_and_paste()
 
         self.item_clicked.emit(content)
-        # Avoid synchronous widget destruction during mouse event dispatch
-        QTimer.singleShot(600, self.refresh_chips)
+        # Note: Do not refresh_chips here so the entry position remains stable and doesn't shift on paste!
+
 
     def _on_expand_clicked(self):
         self.expand_requested.emit()

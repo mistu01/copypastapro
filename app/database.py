@@ -338,6 +338,36 @@ class Database:
             """, (limit,))
             return [dict(row) for row in cursor.fetchall()]
 
+    def get_floating_bar_items(self, bar_limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        Return items specifically for the floating pill bar:
+        - When bar_limit >= 5: pin at least 2 items at the front.
+        - When bar_limit < 5: pin at least 1 item at the front.
+        - Remaining slots filled with unpinned items ordered by id DESC.
+        Ordering unpinned items by id DESC ensures that selecting/pasting an entry
+        never changes its position in the floating pill bar.
+        """
+        bar_limit = max(1, min(10, bar_limit))
+        max_pinned = 2 if bar_limit >= 5 else 1
+        pinned_items = self.get_pinned_items(limit=max_pinned)
+
+        remaining = max(0, bar_limit - len(pinned_items))
+        if remaining == 0:
+            return pinned_items
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM clipboard_items
+                WHERE is_pinned = 0
+                ORDER BY id DESC
+                LIMIT ?
+            """, (remaining,))
+            unpinned_items = [dict(row) for row in cursor.fetchall()]
+
+        return pinned_items + unpinned_items
+
+
     def pin_item(self, item_id: int) -> Tuple[bool, str]:
         """
         Pin an item to the top. Maximum configured entries can be pinned (1..10).

@@ -333,6 +333,23 @@ QPushButton.FloatingChip:hover {
     color: #ffffff;
 }
 
+QPushButton.FloatingChipPinned {
+    background-color: rgba(245, 158, 11, 0.14);
+    border: 1px solid rgba(245, 158, 11, 0.45);
+    border-radius: 12px;
+    color: #fef3c7;
+    font-size: 12px;
+    padding: 4px 11px;
+    text-align: left;
+}
+
+QPushButton.FloatingChipPinned:hover {
+    background-color: rgba(245, 158, 11, 0.28);
+    border-color: #f59e0b;
+    color: #ffffff;
+}
+
+
 /* Floating Bar 2FA Live Chip Container */
 QFrame#FloatingTotpContainer {
     background-color: rgba(5, 150, 105, 0.22);
