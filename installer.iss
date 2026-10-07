@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-#define MyAppVersion "1.3.19"
+#define MyAppVersion "1.3.20"
 #endif
 #define MyAppName "Mistus Copy Pasta"
 #define MyAppPublisher "Mistus Project"
@@ -22,8 +22,8 @@ ArchitecturesInstallIn64BitMode=x64compatible
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
-OutputDir=.
 OutputBaseFilename=Mistus_Copy_Pasta_Setup_v{#MyAppVersion}
+OutputDir=.
 SetupIconFile=app_icon.ico
 
 ; Visuals & Branding
@@ -31,10 +31,9 @@ WizardStyle=modern
 WizardImageFile=wizard_large.bmp
 WizardSmallImageFile=wizard_small.bmp
 
-; Pages configuration: full classic multi-step installer
+; Pages configuration: clean streamlined installer
 DisableWelcomePage=no
 LicenseFile=LICENSE.txt
-InfoBeforeFile=INFO.txt
 DisableDirPage=no
 DisableProgramGroupPage=no
 DisableReadyPage=no
@@ -65,7 +64,7 @@ Name: "startupicon"; Description: "Launch {#MyAppName} automatically when Window
 
 [Files]
 Source: "dist\MistusCopyPasta\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "README.md"; DestDir: "{app}"; Flags: isreadme ignoreversion
+Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "app_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]

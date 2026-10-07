@@ -1,3 +1,11 @@
+## 📋 Release Notes - Mistus Copy Pasta (v1.3.20)
+
+### ⚡ Streamlined Setup & Clean Installation Experience
+- **Removed Redundant Setup Information Page**: Eliminated the intermediary feature/information page from the Windows installer wizard, creating a fast, friction-free installation flow.
+- **Clean Post-Install Finish Screen**: Removed the "View Readme" checkbox from the setup completion screen so users are only presented with the direct "Launch Mistus Copy Pasta" action.
+- **Updated Comprehensive Documentation**:
+  - Fully refreshed `INFO.txt` and `README.md` reflecting the latest features: Lightshot-style screenshot capture suite (`PrintScreen`), multi-format image clipboard copy/paste, desktop dynamic island & compact pill with 1-click minimize to tray, selection quick copy ('C'), and contextual system tray activation.
+
 ## 📋 Release Notes - Mistus Copy Pasta (v1.3.19)
 
 ### 🖱️ Contextual System Tray Activation

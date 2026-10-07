@@ -1,13 +1,14 @@
-Welcome to Mistus Copy Pasta (v1.3.1)!
+Welcome to Mistus Copy Pasta (v1.3.20)!
 
-Mistus Copy Pasta enhances Windows with advanced clipboard and security tools:
+Mistus Copy Pasta enhances Windows with advanced clipboard, screenshot, and security tools:
 - 🟢 ZeBeyond Cyber-Emerald Midnight Theme: Sleek obsidian and neon mint/emerald UI aesthetics.
-- 🎯 Input Box Quick Paste Dot: Subtle dot appears at active text boxes; hover over the dot to auto-expand recent pastable clips without clicking!
-- ⌨️ Caret Quick Paste Hotkey: Press Alt + V (or Ctrl + Alt + V) anytime to instantly summon the quick paste menu right at your cursor.
-- 📌 10 Pinned Slots on Top: Pin your top 10 clipboard items permanently.
-- 🔑 Built-in 2FA TOTP: Live auto-detected two-factor codes with Windows DPAPI encryption.
-- 🚀 Floating Bar: Draggable translucent pill on your desktop showing live 2FA and recent clips.
-- 🗖 Detailed Flyout: Modern Fluent style clipboard flyout with live search.
-- ⌨️ Intercepts Win + V, Ctrl + Shift + V, and Alt + V globally.
+- 📋 Modern Clipboard Manager: Fast Fluent flyout with real-time search, auto-paste, and history management (Win + V or Ctrl + Shift + V).
+- 📌 10 Pinned Slots on Top: Lock your most important clippings and images permanently to top numbered slots.
+- ⚡ Quick Copy on Selection: Highlight text on screen and press 'C' to copy directly without pressing Ctrl + C.
+- 📸 Lightshot-Style Screenshot Suite: Dedicated PrintScreen (PrtScn) key capture with rectangle selection, pen/arrow/rectangle/text/highlighter annotations, and instant copy to clipboard & history.
+- 🖼️ Multi-Format Image Support: Full copy & paste for all image formats (.png, .jpg, .bmp, .gif, .webp, .tiff, .ico) with thumbnail previews and dimensions badges.
+- 🔑 Built-in 2FA TOTP: Live auto-detected two-factor codes with Windows DPAPI encryption and 1-click auto-paste.
+- 🚀 Desktop Floating Island & Compact Pill: Collapsible dynamic island with live 2FA counter, quick-paste chips, and 1-click minimize to system tray.
+- 🖱️ Smart System Tray Integration: Click tray icon to restore pill bar when minimized, or open full clipboard manager when active.
 
 Setup will guide you through installing Mistus Copy Pasta on your computer.
