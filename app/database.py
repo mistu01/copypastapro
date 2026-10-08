@@ -372,12 +372,10 @@ class Database:
                 """)
             return [dict(row) for row in cursor.fetchall()]
 
-    def pin_pill_item(self, item_id: int, max_limit: int = 2) -> Tuple[bool, str]:
+    def pin_pill_item(self, item_id: int, max_limit: int = 5) -> Tuple[bool, str]:
         """
         Pin an item specifically to the desktop pill bar display.
-        Pill bar rules:
-        - When 5+ entries enabled: max 2 items
-        - When < 5 entries enabled: max 1 item
+        Allows pinning up to 5 items in the floating bar.
         """
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -422,43 +420,43 @@ class Database:
     def get_floating_bar_items(self, bar_limit: int = 5) -> List[Dict[str, Any]]:
         """
         Return items specifically for the floating pill bar:
-        - When bar_limit >= 5: pin at least 2 items at the front.
-        - When bar_limit < 5: pin at least 1 item at the front.
-        - Uses dedicated pill bar pinning (is_pill_pinned), completely separate
-          from the main detailed window's 20 pinned slots.
-        - Remaining slots filled with unpinned items ordered by id DESC.
-        Ordering unpinned items by id DESC ensures that selecting/pasting an entry
-        never changes its position in the floating pill bar.
+        - Allows pinning up to 5 items in the floating bar.
+        - Pinned items are positioned on the RIGHT side of the bar.
+        - Unpinned items are positioned on the LEFT side, ordered by id DESC.
+        - Ordering unpinned items by id DESC ensures that selecting/pasting an entry
+          never changes its position in the floating pill bar.
         """
         bar_limit = max(1, min(10, bar_limit))
-        max_pinned = 2 if bar_limit >= 5 else 1
+        max_pinned = min(bar_limit, 5)
         pinned_items = self.get_pill_pinned_items(limit=max_pinned)
         all_pill_pinned = self.get_pill_pinned_items()
         pill_pinned_ids = [p["id"] for p in all_pill_pinned]
 
         remaining = max(0, bar_limit - len(pinned_items))
-        if remaining == 0:
-            return pinned_items
 
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            if pill_pinned_ids:
-                placeholders = ",".join(["?"] * len(pill_pinned_ids))
-                cursor.execute(f"""
-                    SELECT * FROM clipboard_items
-                    WHERE id NOT IN ({placeholders})
-                    ORDER BY id DESC
-                    LIMIT ?
-                """, (*pill_pinned_ids, remaining))
-            else:
-                cursor.execute("""
-                    SELECT * FROM clipboard_items
-                    ORDER BY id DESC
-                    LIMIT ?
-                """, (remaining,))
-            unpinned_items = [dict(row) for row in cursor.fetchall()]
+        unpinned_items = []
+        if remaining > 0:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                if pill_pinned_ids:
+                    placeholders = ",".join(["?"] * len(pill_pinned_ids))
+                    cursor.execute(f"""
+                        SELECT * FROM clipboard_items
+                        WHERE id NOT IN ({placeholders})
+                        ORDER BY id DESC
+                        LIMIT ?
+                    """, (*pill_pinned_ids, remaining))
+                else:
+                    cursor.execute("""
+                        SELECT * FROM clipboard_items
+                        ORDER BY id DESC
+                        LIMIT ?
+                    """, (remaining,))
+                unpinned_items = [dict(row) for row in cursor.fetchall()]
 
-        return pinned_items + unpinned_items
+        # Unpinned items on the left, Pinned items on the right!
+        return unpinned_items + pinned_items
+
 
 
     def pin_item(self, item_id: int) -> Tuple[bool, str]:

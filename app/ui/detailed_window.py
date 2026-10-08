@@ -740,17 +740,56 @@ class DetailedWindow(QWidget):
         except Exception:
             pass
 
+    def _create_message_box(
+        self,
+        title: str,
+        text: str,
+        info_text: str = "",
+        icon=QMessageBox.Question,
+        buttons=QMessageBox.Yes | QMessageBox.No
+    ) -> QMessageBox:
+        msg = QMessageBox(self)
+        msg.setWindowTitle(title)
+        msg.setText(text)
+        if info_text:
+            msg.setInformativeText(info_text)
+        msg.setIcon(icon)
+        msg.setStandardButtons(buttons)
+        msg.setDefaultButton(QMessageBox.No if buttons & QMessageBox.No else QMessageBox.Ok)
+        msg.setWindowFlags(msg.windowFlags() | Qt.WindowStaysOnTopHint | Qt.Dialog)
+        msg.setStyleSheet(DARK_THEME_QSS + """
+            QMessageBox {
+                background-color: #0b1510;
+                border: 1px solid rgba(16, 185, 129, 0.45);
+                border-radius: 10px;
+            }
+            QLabel {
+                color: #f0fdf4;
+                font-size: 13px;
+            }
+            QPushButton {
+                min-width: 80px;
+                padding: 6px 14px;
+                border-radius: 6px;
+                font-weight: 600;
+            }
+        """)
+        geom = self.geometry()
+        msg.move(geom.center().x() - 160, geom.center().y() - 80)
+        return msg
+
     def _clear_unpinned_history(self):
-        reply = QMessageBox.question(
-            self,
+        msg = self._create_message_box(
             "Clear History",
-            "Clear all unpinned clipboard items? Pinned items will remain safe.",
-            QMessageBox.Yes | QMessageBox.No
+            "Clear all unpinned clipboard items?",
+            "All pinned items (main window & pill bar) will remain completely safe."
         )
+        reply = msg.exec()
         if reply == QMessageBox.Yes:
             count = self.db.clear_unpinned_history()
             self.refresh_clipboard_items()
             self.toast.show_message(f"Cleared {count} unpinned items.")
+
 
     def _on_search_changed(self, text: str):
         idx = self.stack.currentIndex()
@@ -1132,17 +1171,13 @@ class DetailedWindow(QWidget):
             self.db.unpin_pill_item(item_id)
             self.toast.show_message("Unpinned from Pill Bar")
         else:
-            try:
-                bar_limit = int(self.db.get_setting("floating_bar_entry_count", "5"))
-            except ValueError:
-                bar_limit = 5
-            bar_limit = max(1, min(10, bar_limit))
-            max_pill_pinned = 2 if bar_limit >= 5 else 1
+            max_pill_pinned = 5
             success, msg = self.db.pin_pill_item(item_id, max_limit=max_pill_pinned)
             if success:
-                self.toast.show_message(f"Pinned to Pill Bar (max {max_pill_pinned})")
+                self.toast.show_message("Pinned to Pill Bar (max 5)")
             else:
                 self.toast.show_message(msg)
+
 
         QTimer.singleShot(60, self.refresh_clipboard_items)
         self.pinned_changed.emit()
@@ -1481,16 +1516,16 @@ class DetailedWindow(QWidget):
                 QMessageBox.critical(self, "Error", f"Failed to save account: {e}")
 
     def _delete_totp_account(self, account_id: int):
-        reply = QMessageBox.question(
-            self,
+        msg = self._create_message_box(
             "Delete 2FA Account",
-            "Remove this permanent 2FA account?",
-            QMessageBox.Yes | QMessageBox.No
+            "Remove this permanent 2FA account?"
         )
+        reply = msg.exec()
         if reply == QMessageBox.Yes:
             self.db.delete_totp_account(account_id)
             self.refresh_totp_accounts()
             self.toast.show_message("2FA account removed")
+
 
     # ================= Reliable Win+V Show & Focus Management =================
     def show_flyout(self, target_pos: Optional[QPoint] = None):

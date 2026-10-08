@@ -487,26 +487,18 @@ class FloatingBar(QWidget):
 
     def _pin_chip(self, item: Dict[str, Any], chip_btn: Optional[QPushButton] = None):
         item_id = item["id"]
-        try:
-            bar_limit = int(self.db.get_setting("floating_bar_entry_count", "5"))
-        except ValueError:
-            bar_limit = 5
-        bar_limit = max(1, min(10, bar_limit))
-        max_pill_pinned = 2 if bar_limit >= 5 else 1
+        max_pill_pinned = 5
 
         success, msg = self.db.pin_pill_item(item_id, max_limit=max_pill_pinned)
         if success:
             self.refresh_chips()
             self.pinned_changed.emit()
         else:
-            tip_msg = (
-                f"Pill bar allows up to {max_pill_pinned} pinned {'item' if max_pill_pinned == 1 else 'items'} "
-                f"({'5+' if bar_limit >= 5 else '<5'} entries enabled).\n"
-                f"Please unpin an item first."
-            )
+            tip_msg = f"Pill bar allows up to {max_pill_pinned} pinned items. Please unpin an item first."
             if chip_btn:
                 pos = chip_btn.mapToGlobal(QPoint(0, chip_btn.height() + 4))
                 QToolTip.showText(pos, tip_msg, chip_btn, QRect(), 3500)
+
 
     def _unpin_chip(self, item: Dict[str, Any]):
         item_id = item["id"]
