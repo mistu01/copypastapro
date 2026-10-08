@@ -62,6 +62,8 @@ class Database:
                     char_count INTEGER,
                     is_pinned INTEGER DEFAULT 0,
                     pin_slot INTEGER DEFAULT NULL,
+                    is_pill_pinned INTEGER DEFAULT 0,
+                    pill_pin_slot INTEGER DEFAULT NULL,
                     created_at REAL,
                     last_used_at REAL
                 )
@@ -69,6 +71,18 @@ class Database:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_is_pinned ON clipboard_items(is_pinned)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_last_used ON clipboard_items(last_used_at)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_pin_slot ON clipboard_items(pin_slot)")
+
+            # Migration for existing databases
+            try:
+                cursor.execute("ALTER TABLE clipboard_items ADD COLUMN is_pill_pinned INTEGER DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass
+            try:
+                cursor.execute("ALTER TABLE clipboard_items ADD COLUMN pill_pin_slot INTEGER DEFAULT NULL")
+            except sqlite3.OperationalError:
+                pass
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_is_pill_pinned ON clipboard_items(is_pill_pinned)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_pill_pin_slot ON clipboard_items(pill_pin_slot)")
 
             # 2FA TOTP accounts table
             cursor.execute("""
@@ -105,6 +119,7 @@ class Database:
             "auto_paste_on_select": "true",
             "selection_c_copy_enabled": "true",
             "floating_bar_entry_count": "5",
+            "max_pinned_slots": "20",
             "max_history_count": "500",
             "theme": "dark"
         }
@@ -162,9 +177,9 @@ class Database:
             # Find image items that will be deleted
             cursor.execute("""
                 SELECT content, content_type FROM clipboard_items
-                WHERE is_pinned = 0 AND id NOT IN (
+                WHERE is_pinned = 0 AND is_pill_pinned = 0 AND id NOT IN (
                     SELECT id FROM clipboard_items
-                    WHERE is_pinned = 0
+                    WHERE is_pinned = 0 AND is_pill_pinned = 0
                     ORDER BY last_used_at DESC
                     LIMIT ?
                 )
@@ -182,9 +197,9 @@ class Database:
 
             cursor.execute("""
                 DELETE FROM clipboard_items
-                WHERE is_pinned = 0 AND id NOT IN (
+                WHERE is_pinned = 0 AND is_pill_pinned = 0 AND id NOT IN (
                     SELECT id FROM clipboard_items
-                    WHERE is_pinned = 0
+                    WHERE is_pinned = 0 AND is_pill_pinned = 0
                     ORDER BY last_used_at DESC
                     LIMIT ?
                 )
@@ -310,13 +325,13 @@ class Database:
             return [dict(row) for row in cursor.fetchall()]
 
     def get_pinned_items(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Return the pinned items (up to configured limit), ordered by pin_slot ASC."""
+        """Return the pinned items (up to configured limit, max 20), ordered by pin_slot ASC."""
         if limit is None:
             try:
-                limit = int(self.get_setting("max_pinned_slots", "10"))
+                limit = int(self.get_setting("max_pinned_slots", "20"))
             except ValueError:
-                limit = 10
-        limit = max(1, min(10, limit))
+                limit = 20
+        limit = max(1, min(20, limit))
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -338,18 +353,88 @@ class Database:
             """, (limit,))
             return [dict(row) for row in cursor.fetchall()]
 
+    def get_pill_pinned_items(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Return items pinned specifically for the pill bar display, ordered by pill_pin_slot ASC."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            if limit:
+                cursor.execute("""
+                    SELECT * FROM clipboard_items
+                    WHERE is_pill_pinned = 1
+                    ORDER BY pill_pin_slot ASC, id DESC
+                    LIMIT ?
+                """, (limit,))
+            else:
+                cursor.execute("""
+                    SELECT * FROM clipboard_items
+                    WHERE is_pill_pinned = 1
+                    ORDER BY pill_pin_slot ASC, id DESC
+                """)
+            return [dict(row) for row in cursor.fetchall()]
+
+    def pin_pill_item(self, item_id: int, max_limit: int = 2) -> Tuple[bool, str]:
+        """
+        Pin an item specifically to the desktop pill bar display.
+        Pill bar rules:
+        - When 5+ entries enabled: max 2 items
+        - When < 5 entries enabled: max 1 item
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, is_pill_pinned, pill_pin_slot FROM clipboard_items WHERE id = ?", (item_id,))
+            item = cursor.fetchone()
+            if not item:
+                return False, "Item not found."
+            if item["is_pill_pinned"]:
+                return True, f"Item is already pinned to pill bar slot #{item['pill_pin_slot']}."
+
+            cursor.execute("SELECT pill_pin_slot FROM clipboard_items WHERE is_pill_pinned = 1")
+            used_slots = [row["pill_pin_slot"] for row in cursor.fetchall() if row["pill_pin_slot"] is not None]
+            if len(used_slots) >= max_limit:
+                return False, f"Pill bar allows up to {max_limit} pinned items. Please unpin an item first."
+
+            available_slot = 1
+            for slot in range(1, max_limit + 1):
+                if slot not in used_slots:
+                    available_slot = slot
+                    break
+
+            cursor.execute("""
+                UPDATE clipboard_items
+                SET is_pill_pinned = 1, pill_pin_slot = ?
+                WHERE id = ?
+            """, (available_slot, item_id))
+            conn.commit()
+            return True, f"Pinned to pill bar slot #{available_slot}."
+
+    def unpin_pill_item(self, item_id: int) -> bool:
+        """Unpin an item from the desktop pill bar."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE clipboard_items
+                SET is_pill_pinned = 0, pill_pin_slot = NULL
+                WHERE id = ?
+            """, (item_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
     def get_floating_bar_items(self, bar_limit: int = 5) -> List[Dict[str, Any]]:
         """
         Return items specifically for the floating pill bar:
         - When bar_limit >= 5: pin at least 2 items at the front.
         - When bar_limit < 5: pin at least 1 item at the front.
+        - Uses dedicated pill bar pinning (is_pill_pinned), completely separate
+          from the main detailed window's 20 pinned slots.
         - Remaining slots filled with unpinned items ordered by id DESC.
         Ordering unpinned items by id DESC ensures that selecting/pasting an entry
         never changes its position in the floating pill bar.
         """
         bar_limit = max(1, min(10, bar_limit))
         max_pinned = 2 if bar_limit >= 5 else 1
-        pinned_items = self.get_pinned_items(limit=max_pinned)
+        pinned_items = self.get_pill_pinned_items(limit=max_pinned)
+        all_pill_pinned = self.get_pill_pinned_items()
+        pill_pinned_ids = [p["id"] for p in all_pill_pinned]
 
         remaining = max(0, bar_limit - len(pinned_items))
         if remaining == 0:
@@ -357,12 +442,20 @@ class Database:
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT * FROM clipboard_items
-                WHERE is_pinned = 0
-                ORDER BY id DESC
-                LIMIT ?
-            """, (remaining,))
+            if pill_pinned_ids:
+                placeholders = ",".join(["?"] * len(pill_pinned_ids))
+                cursor.execute(f"""
+                    SELECT * FROM clipboard_items
+                    WHERE id NOT IN ({placeholders})
+                    ORDER BY id DESC
+                    LIMIT ?
+                """, (*pill_pinned_ids, remaining))
+            else:
+                cursor.execute("""
+                    SELECT * FROM clipboard_items
+                    ORDER BY id DESC
+                    LIMIT ?
+                """, (remaining,))
             unpinned_items = [dict(row) for row in cursor.fetchall()]
 
         return pinned_items + unpinned_items
@@ -370,14 +463,14 @@ class Database:
 
     def pin_item(self, item_id: int) -> Tuple[bool, str]:
         """
-        Pin an item to the top. Maximum configured entries can be pinned (1..10).
+        Pin an item to the top of main detailed window. Maximum configured entries can be pinned (1..20).
         Returns (success: bool, message: str)
         """
         try:
-            max_slots = int(self.get_setting("max_pinned_slots", "10"))
+            max_slots = int(self.get_setting("max_pinned_slots", "20"))
         except ValueError:
-            max_slots = 10
-        max_slots = max(1, min(10, max_slots))
+            max_slots = 20
+        max_slots = max(1, min(20, max_slots))
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -409,6 +502,7 @@ class Database:
             """, (available_slot, time.time(), item_id))
             conn.commit()
             return True, f"Pinned to slot #{available_slot}."
+
 
     def unpin_item(self, item_id: int) -> bool:
         """Unpin an item."""

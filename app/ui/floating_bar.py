@@ -376,15 +376,15 @@ class FloatingBar(QWidget):
             preview = (content[:16] + "…") if len(content) > 16 else content
 
         btn = QPushButton()
-        is_pinned = bool(item.get("is_pinned"))
-        if is_pinned:
+        is_pill_pinned = bool(item.get("is_pill_pinned"))
+        if is_pill_pinned:
             btn.setProperty("class", "FloatingChipPinned")
         else:
             btn.setProperty("class", "FloatingChip")
         btn.setIconSize(QSize(14, 14))
 
         # Icon based on type or pinned
-        if is_pinned:
+        if is_pill_pinned:
             btn.setIcon(AppIcons.pin_icon(14, "#f59e0b", filled=True))
         elif is_img:
             btn.setIcon(AppIcons.get("image", 14, "#38bdf8"))
@@ -399,7 +399,7 @@ class FloatingBar(QWidget):
 
         btn.setText(f" {preview}")
 
-        pin_label = "📌 Pinned • " if is_pinned else ""
+        pin_label = "📌 Pinned to Pill Bar • " if is_pill_pinned else ""
         if is_img:
             btn.setToolTip(f"{pin_label}Image: {preview}\nDimensions: {meta.get('width', 0)} × {meta.get('height', 0)} px\n\nClick to copy & paste • Right-click for options")
         else:
@@ -432,8 +432,8 @@ class FloatingBar(QWidget):
             }
         """)
 
-        is_pinned = bool(item.get("is_pinned"))
-        if is_pinned:
+        is_pill_pinned = bool(item.get("is_pill_pinned"))
+        if is_pill_pinned:
             act_pin = menu.addAction(AppIcons.pin_icon(14, "#f59e0b", filled=False), "Unpin from Pill Bar")
             act_pin.triggered.connect(lambda: self._unpin_chip(item))
         else:
@@ -459,8 +459,11 @@ class FloatingBar(QWidget):
         bar_limit = max(1, min(10, bar_limit))
         max_pill_pinned = 2 if bar_limit >= 5 else 1
 
-        pinned_items = self.db.get_pinned_items(limit=max_pill_pinned)
-        if len(pinned_items) >= max_pill_pinned:
+        success, msg = self.db.pin_pill_item(item_id, max_limit=max_pill_pinned)
+        if success:
+            self.refresh_chips()
+            self.pinned_changed.emit()
+        else:
             tip_msg = (
                 f"Pill bar allows up to {max_pill_pinned} pinned {'item' if max_pill_pinned == 1 else 'items'} "
                 f"({'5+' if bar_limit >= 5 else '<5'} entries enabled).\n"
@@ -469,20 +472,10 @@ class FloatingBar(QWidget):
             if chip_btn:
                 pos = chip_btn.mapToGlobal(QPoint(0, chip_btn.height() + 4))
                 QToolTip.showText(pos, tip_msg, chip_btn, QRect(), 3500)
-            return
-
-        success, msg = self.db.pin_item(item_id)
-        if success:
-            self.refresh_chips()
-            self.pinned_changed.emit()
-        else:
-            if chip_btn:
-                pos = chip_btn.mapToGlobal(QPoint(0, chip_btn.height() + 4))
-                QToolTip.showText(pos, msg, chip_btn, QRect(), 3000)
 
     def _unpin_chip(self, item: Dict[str, Any]):
         item_id = item["id"]
-        self.db.unpin_item(item_id)
+        self.db.unpin_pill_item(item_id)
         self.refresh_chips()
         self.pinned_changed.emit()
 

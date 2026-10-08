@@ -54,10 +54,11 @@ class DetailedWindow(QWidget):
 
     def _get_max_pinned_slots(self) -> int:
         try:
-            val = int(self.db.get_setting("max_pinned_slots", "10"))
-            return max(1, min(10, val))
+            val = int(self.db.get_setting("max_pinned_slots", "20"))
+            return max(1, min(20, val))
         except ValueError:
-            return 10
+            return 20
+
 
     def _init_window(self):
         self.setObjectName("DetailedWindow")
@@ -633,7 +634,7 @@ class DetailedWindow(QWidget):
         pinned_box.addWidget(pinned_lbl)
         pinned_box.addStretch()
         self.combo_pinned_entries = QComboBox()
-        self.combo_pinned_entries.addItems([str(i) for i in range(1, 11)])
+        self.combo_pinned_entries.addItems([str(i) for i in range(1, 21)])
         self.combo_pinned_entries.setCurrentText(str(self._get_max_pinned_slots()))
         self.combo_pinned_entries.currentTextChanged.connect(self._save_settings)
         pinned_box.addWidget(self.combo_pinned_entries)
@@ -961,7 +962,21 @@ class DetailedWindow(QWidget):
         time_lbl.setStyleSheet("color: #64748b; font-size: 11px;")
         meta_row.addWidget(time_lbl)
 
+        if item.get("is_pill_pinned"):
+            pill_badge = QLabel("📌 PILL BAR")
+            pill_badge.setStyleSheet("""
+                background-color: rgba(245, 158, 11, 0.16);
+                border: 1px solid rgba(245, 158, 11, 0.45);
+                color: #fbbf24;
+                font-weight: 700;
+                font-size: 10px;
+                border-radius: 5px;
+                padding: 2px 6px;
+            """)
+            meta_row.addWidget(pill_badge)
+
         meta_row.addStretch()
+
 
         # Pin / Unpin button
         pin_btn = QPushButton()
@@ -1059,18 +1074,88 @@ class DetailedWindow(QWidget):
         def _on_card_clicked(event, it=item):
             if event.button() == Qt.LeftButton:
                 self._select_and_paste(it)
+            elif event.button() == Qt.RightButton:
+                self._show_card_context_menu(event.globalPosition().toPoint(), it)
 
         card.mousePressEvent = _on_card_clicked
         return card
+
+    def _show_card_context_menu(self, global_pos: QPoint, item: Dict[str, Any]):
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #080d0a;
+                border: 1px solid rgba(16, 185, 129, 0.25);
+                border-radius: 8px;
+                padding: 6px;
+                color: #f0fdf4;
+            }
+            QMenu::item {
+                padding: 6px 18px;
+                border-radius: 4px;
+                font-size: 12px;
+            }
+            QMenu::item:selected {
+                background-color: #059669;
+                color: #ffffff;
+            }
+        """)
+
+        is_pinned = bool(item.get("is_pinned"))
+        max_pins = self._get_max_pinned_slots()
+        if is_pinned:
+            act_main_pin = menu.addAction(AppIcons.pin_icon(14, "#f59e0b", filled=False), "Unpin from Main Window")
+        else:
+            act_main_pin = menu.addAction(AppIcons.pin_icon(14, "#f59e0b", filled=True), f"Pin to Main Window (max {max_pins})")
+        act_main_pin.triggered.connect(lambda: self._toggle_pin(item))
+
+        is_pill_pinned = bool(item.get("is_pill_pinned"))
+        if is_pill_pinned:
+            act_pill_pin = menu.addAction(AppIcons.pin_icon(14, "#38bdf8", filled=False), "Unpin from Pill Bar")
+        else:
+            act_pill_pin = menu.addAction(AppIcons.pin_icon(14, "#38bdf8", filled=True), "Pin to Pill Bar")
+        act_pill_pin.triggered.connect(lambda: self._toggle_pill_pin(item))
+
+        menu.addSeparator()
+
+        act_paste = menu.addAction(AppIcons.clipboard(14, "#00f59b"), "Copy & Paste")
+        act_paste.triggered.connect(lambda: self._select_and_paste(item))
+
+        act_del = menu.addAction(AppIcons.trash(14, "#f43f5e"), "Delete Clipping")
+        act_del.triggered.connect(lambda: self._delete_item(item["id"]))
+
+        menu.exec(global_pos)
+
+    def _toggle_pill_pin(self, item: Dict[str, Any]):
+        item_id = item["id"]
+        if item.get("is_pill_pinned"):
+            self.db.unpin_pill_item(item_id)
+            self.toast.show_message("Unpinned from Pill Bar")
+        else:
+            try:
+                bar_limit = int(self.db.get_setting("floating_bar_entry_count", "5"))
+            except ValueError:
+                bar_limit = 5
+            bar_limit = max(1, min(10, bar_limit))
+            max_pill_pinned = 2 if bar_limit >= 5 else 1
+            success, msg = self.db.pin_pill_item(item_id, max_limit=max_pill_pinned)
+            if success:
+                self.toast.show_message(f"Pinned to Pill Bar (max {max_pill_pinned})")
+            else:
+                self.toast.show_message(msg)
+
+        QTimer.singleShot(60, self.refresh_clipboard_items)
+        self.pinned_changed.emit()
 
     def _toggle_pin(self, item: Dict[str, Any]):
         item_id = item["id"]
         if item["is_pinned"]:
             self.db.unpin_item(item_id)
-            self.toast.show_message("Clipping unpinned")
+            self.toast.show_message("Clipping unpinned from Main Window")
         else:
             success, msg = self.db.pin_item(item_id)
             self.toast.show_message(msg)
+
 
         QTimer.singleShot(60, self.refresh_clipboard_items)
         self.pinned_changed.emit()
