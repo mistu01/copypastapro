@@ -56,6 +56,21 @@ class DragHandleButton(QPushButton):
         event.accept()
 
 
+class FloatingChipButton(QPushButton):
+    """Interactive chip button representing a clipboard entry in the pill bar."""
+    right_clicked = Signal(QPoint)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.RightButton:
+            event.accept()
+            self.right_clicked.emit(event.globalPosition().toPoint())
+            return
+        super().mousePressEvent(event)
+
+
 class FloatingBar(QWidget):
     expand_requested = Signal()
     item_clicked = Signal(str)
@@ -375,7 +390,7 @@ class FloatingBar(QWidget):
             content = item["content"].strip().replace("\n", " ")
             preview = (content[:16] + "…") if len(content) > 16 else content
 
-        btn = QPushButton()
+        btn = FloatingChipButton()
         is_pill_pinned = bool(item.get("is_pill_pinned"))
         if is_pill_pinned:
             btn.setProperty("class", "FloatingChipPinned")
@@ -401,17 +416,15 @@ class FloatingBar(QWidget):
 
         pin_label = "📌 Pinned to Pill Bar • " if is_pill_pinned else ""
         if is_img:
-            btn.setToolTip(f"{pin_label}Image: {preview}\nDimensions: {meta.get('width', 0)} × {meta.get('height', 0)} px\n\nClick to copy & paste • Right-click for options")
+            btn.setToolTip(f"{pin_label}Image: {preview}\nDimensions: {meta.get('width', 0)} × {meta.get('height', 0)} px\n\nClick to copy & paste • Right-click to Pin or Delete")
         else:
-            btn.setToolTip(f"{pin_label}{content}\n\nClick to copy & paste • Right-click for options")
+            btn.setToolTip(f"{pin_label}{content}\n\nClick to copy & paste • Right-click to Pin or Delete")
         btn.setCursor(Qt.PointingHandCursor)
         btn.clicked.connect(lambda _, it=item: self._on_chip_clicked(it))
-
-        btn.setContextMenuPolicy(Qt.CustomContextMenu)
-        btn.customContextMenuRequested.connect(lambda pos, it=item, b=btn: self._show_chip_context_menu(pos, it, b))
+        btn.right_clicked.connect(lambda global_pos, it=item, b=btn: self._show_chip_context_menu(global_pos, it, b))
         return btn
 
-    def _show_chip_context_menu(self, pos: QPoint, item: Dict[str, Any], chip_btn: QPushButton):
+    def _show_chip_context_menu(self, global_pos: QPoint, item: Dict[str, Any], chip_btn: QPushButton):
         menu = QMenu(self)
         menu.setStyleSheet("""
             QMenu {
@@ -434,21 +447,43 @@ class FloatingBar(QWidget):
 
         is_pill_pinned = bool(item.get("is_pill_pinned"))
         if is_pill_pinned:
-            act_pin = menu.addAction(AppIcons.pin_icon(14, "#f59e0b", filled=False), "Unpin from Pill Bar")
+            act_pin = menu.addAction(AppIcons.pin_icon(14, "#f59e0b", filled=False), "📌 Unpin from Pill Bar")
             act_pin.triggered.connect(lambda: self._unpin_chip(item))
         else:
-            act_pin = menu.addAction(AppIcons.pin_icon(14, "#f59e0b", filled=True), "Pin to Pill Bar")
+            act_pin = menu.addAction(AppIcons.pin_icon(14, "#f59e0b", filled=True), "📌 Pin to Pill Bar")
             act_pin.triggered.connect(lambda: self._pin_chip(item, chip_btn))
+
+        is_main_pinned = bool(item.get("is_pinned"))
+        if is_main_pinned:
+            act_main_pin = menu.addAction(AppIcons.pin_icon(14, "#38bdf8", filled=False), "Unpin from Main Window")
+            act_main_pin.triggered.connect(lambda: self._unpin_main_window_item(item))
+        else:
+            act_main_pin = menu.addAction(AppIcons.pin_icon(14, "#38bdf8", filled=True), "Pin to Main Window (up to 20)")
+            act_main_pin.triggered.connect(lambda: self._pin_main_window_item(item, chip_btn))
 
         menu.addSeparator()
 
-        act_paste = menu.addAction(AppIcons.clipboard(14, "#00f59b"), "Copy & Paste")
+        act_paste = menu.addAction(AppIcons.clipboard(14, "#00f59b"), "📋 Copy & Paste")
         act_paste.triggered.connect(lambda: self._on_chip_clicked(item))
 
-        act_del = menu.addAction(AppIcons.trash(14, "#f43f5e"), "Delete Clipping")
+        act_del = menu.addAction(AppIcons.trash(14, "#f43f5e"), "🗑️ Delete Clipping")
         act_del.triggered.connect(lambda: self._delete_chip(item))
 
-        menu.exec(chip_btn.mapToGlobal(pos))
+        menu.exec(global_pos)
+
+    def _pin_main_window_item(self, item: Dict[str, Any], chip_btn: Optional[QPushButton] = None):
+        success, msg = self.db.pin_item(item["id"])
+        if success:
+            self.pinned_changed.emit()
+        else:
+            if chip_btn:
+                pos = chip_btn.mapToGlobal(QPoint(0, chip_btn.height() + 4))
+                QToolTip.showText(pos, msg, chip_btn, QRect(), 3000)
+
+    def _unpin_main_window_item(self, item: Dict[str, Any]):
+        self.db.unpin_item(item["id"])
+        self.pinned_changed.emit()
+
 
     def _pin_chip(self, item: Dict[str, Any], chip_btn: Optional[QPushButton] = None):
         item_id = item["id"]
@@ -588,8 +623,16 @@ class FloatingBar(QWidget):
             self.start_drag(event.globalPosition().toPoint())
             event.accept()
         elif event.button() == Qt.RightButton:
+            child = self.childAt(event.position().toPoint())
+            while child and child != self:
+                if isinstance(child, FloatingChipButton):
+                    child.right_clicked.emit(event.globalPosition().toPoint())
+                    event.accept()
+                    return
+                child = child.parentWidget()
             self._show_context_menu(event.globalPosition().toPoint())
             event.accept()
+
 
     def mouseMoveEvent(self, event):
         if self._dragging and event.buttons() & Qt.LeftButton:
