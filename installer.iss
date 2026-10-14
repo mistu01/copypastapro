@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-#define MyAppVersion "1.3.25"
+#define MyAppVersion "1.3.26"
 #endif
 #define MyAppName "Mistus Copy Pasta"
 #define MyAppPublisher "Mistus Project"
@@ -91,3 +91,36 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 [UninstallDelete]
 Type: files; Name: "{app}\*.log"
 Type: files; Name: "{app}\*.bmp"
+
+[Code]
+function PostMessage(hWnd: HWND; Msg: Cardinal; wParam: LongInt; lParam: LongInt): Boolean;
+external 'PostMessageW@user32.dll stdcall';
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  DisabledHotkeys: String;
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    // 1. Re-enable native Windows 10/11 Clipboard History
+    RegWriteDWordValue(HKCU, 'Software\Microsoft\Clipboard', 'EnableClipboardHistory', 1);
+
+    // 2. Remove 'V' from DisabledHotkeys in Explorer\Advanced so Win+V works natively
+    if RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced', 'DisabledHotkeys', DisabledHotkeys) then
+    begin
+      StringChangeEx(DisabledHotkeys, 'V', '', True);
+      if Length(DisabledHotkeys) > 0 then
+        RegWriteStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced', 'DisabledHotkeys', DisabledHotkeys)
+      else
+        RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced', 'DisabledHotkeys');
+    end;
+
+    // 3. Broadcast WM_SETTINGCHANGE so Windows Explorer reloads hotkeys immediately
+    // HWND_BROADCAST = 65535 ($FFFF), WM_SETTINGCHANGE = 26 ($001A)
+    try
+      PostMessage(65535, 26, 0, 0);
+    except
+      // Ignore if broadcast fails
+    end;
+  end;
+end;

@@ -38,6 +38,7 @@ class PasteHelper:
         self.last_foreground_hwnd: Optional[int] = None
         self.our_pid = os.getpid()
         self._running = True
+        self._paste_lock = threading.Lock()
         self._tracker_thread = threading.Thread(target=self._track_foreground, daemon=True)
         self._tracker_thread.start()
 
@@ -54,7 +55,7 @@ class PasteHelper:
                             self.last_foreground_hwnd = hwnd
             except Exception:
                 pass
-            time.sleep(0.06)
+            time.sleep(0.12)
 
     def capture_foreground_window(self) -> Optional[int]:
         """Explicit snapshot of current external foreground window."""
@@ -163,26 +164,26 @@ class PasteHelper:
         ).start()
 
     def _do_restore_and_paste(self, target_hwnd: Optional[int]):
-        # Brief pause to allow the flyout to finish hiding if called from DetailedWindow
-        time.sleep(0.04)
+        with self._paste_lock:
+            # Brief pause to allow the flyout to finish hiding if called from DetailedWindow
+            time.sleep(0.025)
 
-        current_fore = user32.GetForegroundWindow()
-        hwnd_to_use = target_hwnd or current_fore or self.last_foreground_hwnd
+            current_fore = user32.GetForegroundWindow()
+            hwnd_to_use = target_hwnd or current_fore or self.last_foreground_hwnd
 
-        # Only bring to foreground if target is not already the foreground window
-        if hwnd_to_use and HAS_WIN32 and win32gui.IsWindow(hwnd_to_use):
-            if current_fore != hwnd_to_use:
-                self._force_window_to_foreground(hwnd_to_use)
-                time.sleep(0.05)
+            # Only bring to foreground if target is not already the foreground window
+            if hwnd_to_use and HAS_WIN32 and win32gui.IsWindow(hwnd_to_use):
+                if current_fore != hwnd_to_use:
+                    self._force_window_to_foreground(hwnd_to_use)
+                    time.sleep(0.02)
 
-        # Send simulated Ctrl+V with hardware scan codes
-        self._simulate_ctrl_v()
+            # Send simulated Ctrl+V with hardware scan codes
+            self._simulate_ctrl_v()
 
     def _force_window_to_foreground(self, target_hwnd: int):
         """
         Clean Win32 foreground activation that preserves input cursor focus.
-        Uses AttachThreadInput without synthesizing any Alt keystrokes,
-        preventing Firefox, WhatsApp, or other apps from entering the menu bar.
+        Safely detaches thread input in finally block to prevent OS-level hangs.
         """
         try:
             if not target_hwnd or not win32gui.IsWindow(target_hwnd):
@@ -199,21 +200,24 @@ class PasteHelper:
             fore_thread = user32.GetWindowThreadProcessId(fore_hwnd, None) if fore_hwnd else 0
             target_thread = user32.GetWindowThreadProcessId(target_hwnd, None)
 
-            # Temporarily attach thread inputs to gain foreground permission cleanly
-            if fore_thread and fore_thread != cur_thread:
-                user32.AttachThreadInput(cur_thread, fore_thread, True)
-            if target_thread and target_thread != cur_thread:
-                user32.AttachThreadInput(cur_thread, target_thread, True)
+            fore_attached = False
+            target_attached = False
+            try:
+                # Temporarily attach thread inputs to gain foreground permission cleanly
+                if fore_thread and fore_thread != cur_thread:
+                    fore_attached = bool(user32.AttachThreadInput(cur_thread, fore_thread, True))
+                if target_thread and target_thread != cur_thread:
+                    target_attached = bool(user32.AttachThreadInput(cur_thread, target_thread, True))
 
-            user32.AllowSetForegroundWindow(-1)
-            user32.BringWindowToTop(target_hwnd)
-            user32.SetForegroundWindow(target_hwnd)
-
-            # Detach thread input
-            if target_thread and target_thread != cur_thread:
-                user32.AttachThreadInput(cur_thread, target_thread, False)
-            if fore_thread and fore_thread != cur_thread:
-                user32.AttachThreadInput(cur_thread, fore_thread, False)
+                user32.AllowSetForegroundWindow(-1)
+                user32.BringWindowToTop(target_hwnd)
+                user32.SetForegroundWindow(target_hwnd)
+            finally:
+                # Always safely detach thread inputs in all cases
+                if target_attached:
+                    user32.AttachThreadInput(cur_thread, target_thread, False)
+                if fore_attached:
+                    user32.AttachThreadInput(cur_thread, fore_thread, False)
         except Exception as e:
             print(f"[PasteHelper] Error forcing foreground: {e}")
 
@@ -225,25 +229,26 @@ class PasteHelper:
                 if user32.GetAsyncKeyState(vk) & 0x8000:
                     user32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
 
-            time.sleep(0.01)
+            time.sleep(0.005)
 
             scan_ctrl = user32.MapVirtualKeyW(VK_CONTROL, 0)
             scan_v = user32.MapVirtualKeyW(VK_V, 0)
 
-            # Press Ctrl
-            user32.keybd_event(VK_CONTROL, scan_ctrl, 0, 0)
-            time.sleep(0.015)
+            try:
+                # Press Ctrl
+                user32.keybd_event(VK_CONTROL, scan_ctrl, 0, 0)
+                time.sleep(0.008)
 
-            # Press V
-            user32.keybd_event(VK_V, scan_v, 0, 0)
-            time.sleep(0.02)
+                # Press V
+                user32.keybd_event(VK_V, scan_v, 0, 0)
+                time.sleep(0.012)
 
-            # Release V
-            user32.keybd_event(VK_V, scan_v, KEYEVENTF_KEYUP, 0)
-            time.sleep(0.015)
-
-            # Release Ctrl
-            user32.keybd_event(VK_CONTROL, scan_ctrl, KEYEVENTF_KEYUP, 0)
+                # Release V
+                user32.keybd_event(VK_V, scan_v, KEYEVENTF_KEYUP, 0)
+                time.sleep(0.008)
+            finally:
+                # Guarantee Ctrl is ALWAYS released to prevent stuck modifier keys!
+                user32.keybd_event(VK_CONTROL, scan_ctrl, KEYEVENTF_KEYUP, 0)
         except Exception as e:
             print(f"[PasteHelper] Error simulating Ctrl+V: {e}")
 
@@ -255,25 +260,26 @@ class PasteHelper:
                 if user32.GetAsyncKeyState(vk) & 0x8000:
                     user32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
 
-            time.sleep(0.01)
+            time.sleep(0.005)
 
             scan_ctrl = user32.MapVirtualKeyW(VK_CONTROL, 0)
             VK_C = 0x43
             scan_c = user32.MapVirtualKeyW(VK_C, 0)
 
-            # Press Ctrl
-            user32.keybd_event(VK_CONTROL, scan_ctrl, 0, 0)
-            time.sleep(0.015)
+            try:
+                # Press Ctrl
+                user32.keybd_event(VK_CONTROL, scan_ctrl, 0, 0)
+                time.sleep(0.008)
 
-            # Press C
-            user32.keybd_event(VK_C, scan_c, 0, 0)
-            time.sleep(0.02)
+                # Press C
+                user32.keybd_event(VK_C, scan_c, 0, 0)
+                time.sleep(0.012)
 
-            # Release C
-            user32.keybd_event(VK_C, scan_c, KEYEVENTF_KEYUP, 0)
-            time.sleep(0.015)
-
-            # Release Ctrl
-            user32.keybd_event(VK_CONTROL, scan_ctrl, KEYEVENTF_KEYUP, 0)
+                # Release C
+                user32.keybd_event(VK_C, scan_c, KEYEVENTF_KEYUP, 0)
+                time.sleep(0.008)
+            finally:
+                # Guarantee Ctrl is ALWAYS released!
+                user32.keybd_event(VK_CONTROL, scan_ctrl, KEYEVENTF_KEYUP, 0)
         except Exception as e:
             print(f"[PasteHelper] Error copying selection: {e}")

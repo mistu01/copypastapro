@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QScrollArea, QFrame, QStackedWidget,
     QProgressBar, QMessageBox, QSlider, QCheckBox, QComboBox,
-    QGraphicsDropShadowEffect, QApplication
+    QGraphicsDropShadowEffect, QApplication, QSizePolicy
 )
 from PySide6.QtCore import Qt, QTimer, Signal, QPoint, QSize
 from PySide6.QtGui import QColor, QPixmap, QKeySequence, QShortcut
@@ -64,7 +64,8 @@ class DetailedWindow(QWidget):
         self.setObjectName("DetailedWindow")
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.resize(560, 680)
+        self.resize(585, 680)
+        self.setMinimumWidth(480)
         self.setStyleSheet(DARK_THEME_QSS)
 
         # Drop Shadow
@@ -217,8 +218,9 @@ class DetailedWindow(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         content_widget = QWidget()
+        content_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         list_layout = QVBoxLayout(content_widget)
-        list_layout.setContentsMargins(2, 2, 2, 2)
+        list_layout.setContentsMargins(2, 2, 6, 2)
         list_layout.setSpacing(8)
         list_layout.addStretch()
         scroll.setWidget(content_widget)
@@ -809,9 +811,10 @@ class DetailedWindow(QWidget):
         max_pins = self._get_max_pinned_slots()
         items = self.db.get_history(search=search_query, limit=max_limit)
         pinned_items = self.db.get_pinned_items(limit=max_pins)
+        recent_list = [it for it in items if not it["is_pinned"]]
 
         self.tab_btn_pinned.setText(f"Pinned ({len(pinned_items)}/{max_pins})")
-        self.tab_btn_all.setText(f"Clipboard ({len(items)})")
+        self.tab_btn_all.setText(f"Clipboard ({len(recent_list)})")
 
         if self.stack.currentIndex() == 1:
             target_scroll = self.page_pinned
@@ -829,39 +832,21 @@ class DetailedWindow(QWidget):
             if child.widget():
                 child.widget().deleteLater()
 
-        if not items:
+        if not recent_list:
             empty_lbl = QLabel("No clipboard items found." if not search_query else f"No matches for '{search_query}'.")
             empty_lbl.setStyleSheet("color: #64748b; font-size: 13px; padding: 40px; text-align: center;")
             empty_lbl.setAlignment(Qt.AlignCenter)
             layout.insertWidget(0, empty_lbl)
             return
 
-        pinned_list = [it for it in items if it["is_pinned"]][:max_pins]
-        recent_list = [it for it in items if not it["is_pinned"]]
+        hdr_title = f"MATCHING CLIPPINGS ({len(recent_list)})" if search_query else f"RECENT CLIPPINGS ({len(recent_list)})"
+        hdr_recent = QLabel(hdr_title)
+        hdr_recent.setProperty("class", "SectionHeader")
+        layout.insertWidget(0, hdr_recent)
 
-        insert_idx = 0
-        if pinned_list:
-            hdr_pinned = QLabel(f"PINNED CLIPPINGS ({len(pinned_list)}/{max_pins})")
-            hdr_pinned.setProperty("class", "SectionHeader")
-            layout.insertWidget(insert_idx, hdr_pinned)
-            insert_idx += 1
-
-            for item in pinned_list:
-                card = self._build_item_card(item)
-                layout.insertWidget(insert_idx, card)
-                insert_idx += 1
-
-        if recent_list:
-            hdr_title = f"MATCHING CLIPPINGS ({len(recent_list)})" if search_query else f"RECENT CLIPPINGS ({len(recent_list)})"
-            hdr_recent = QLabel(hdr_title)
-            hdr_recent.setProperty("class", "SectionHeader")
-            layout.insertWidget(insert_idx, hdr_recent)
-            insert_idx += 1
-
-            for idx, item in enumerate(recent_list, 1):
-                card = self._build_item_card(item, index=idx)
-                layout.insertWidget(insert_idx, card)
-                insert_idx += 1
+        for idx, item in enumerate(recent_list, 1):
+            card = self._build_item_card(item, index=idx)
+            layout.insertWidget(idx, card)
 
     def _render_pinned_slots_view(self, layout, pinned_items: List[Dict[str, Any]], max_pins: Optional[int] = None):
         if max_pins is None:
@@ -906,10 +891,11 @@ class DetailedWindow(QWidget):
 
         card = QFrame()
         card.setProperty("class", "PinnedCard" if is_pinned else "ClipboardCard")
+        card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         card.setCursor(Qt.PointingHandCursor)
 
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(14, 10, 14, 10)
+        card_layout.setContentsMargins(12, 8, 12, 8)
         card_layout.setSpacing(6)
 
         # Meta Header
@@ -1016,6 +1002,11 @@ class DetailedWindow(QWidget):
 
         meta_row.addStretch()
 
+        # Action Buttons container - guaranteed visible on Windows 10/11
+        btn_box = QWidget()
+        btn_layout = QHBoxLayout(btn_box)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.setSpacing(4)
 
         # Pin / Unpin button
         pin_btn = QPushButton()
@@ -1026,7 +1017,7 @@ class DetailedWindow(QWidget):
         max_pins = self._get_max_pinned_slots()
         pin_btn.setToolTip("Unpin from top" if is_pinned else f"Pin to top (max {max_pins})")
         pin_btn.clicked.connect(lambda _, it=item: self._toggle_pin(it))
-        meta_row.addWidget(pin_btn)
+        btn_layout.addWidget(pin_btn)
 
         # Delete button
         del_btn = QPushButton()
@@ -1036,7 +1027,10 @@ class DetailedWindow(QWidget):
         del_btn.setFixedSize(26, 26)
         del_btn.setToolTip("Delete clipping")
         del_btn.clicked.connect(lambda _, it_id=item["id"]: self._delete_item(it_id))
-        meta_row.addWidget(del_btn)
+        btn_layout.addWidget(del_btn)
+
+        btn_box.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        meta_row.addWidget(btn_box, 0, Qt.AlignRight)
 
         card_layout.addLayout(meta_row)
 
@@ -1100,9 +1094,22 @@ class DetailedWindow(QWidget):
                 preview = "\n".join(lines[:3]) + "..."
             if len(preview) > 160:
                 preview = preview[:160] + "..."
-            content_lbl.setText(preview)
+
+            # Soft-wrap long unbroken strings (URLs, tokens) so they never force card width wider than window
+            words = []
+            for word in preview.split(" "):
+                if len(word) > 28:
+                    chunks = [word[i:i+24] for i in range(0, len(word), 24)]
+                    words.append("\u200b".join(chunks))
+                else:
+                    words.append(word)
+            wrapped_preview = " ".join(words)
+
+            content_lbl.setText(wrapped_preview)
             content_lbl.setStyleSheet("color: #f1f5f9; font-size: 13px; line-height: 1.45;")
             content_lbl.setWordWrap(True)
+            content_lbl.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+            content_lbl.setMinimumWidth(0)
             card_layout.addWidget(content_lbl)
 
         # Ensure clicking anywhere on the card (text, badges, metadata) triggers direct paste
@@ -1569,15 +1576,17 @@ class DetailedWindow(QWidget):
             try:
                 cur_thread = kernel32.GetCurrentThreadId()
                 fore_hwnd = user32.GetForegroundWindow()
-                fore_thread = user32.GetWindowThreadProcessId(fore_hwnd, None)
-                if cur_thread != fore_thread:
-                    user32.AttachThreadInput(cur_thread, fore_thread, True)
-                    user32.SetForegroundWindow(hwnd)
+                fore_thread = user32.GetWindowThreadProcessId(fore_hwnd, None) if fore_hwnd else 0
+                attached = False
+                try:
+                    if fore_thread and cur_thread != fore_thread:
+                        attached = bool(user32.AttachThreadInput(cur_thread, fore_thread, True))
+                    user32.AllowSetForegroundWindow(-1)
                     user32.BringWindowToTop(hwnd)
-                    user32.AttachThreadInput(cur_thread, fore_thread, False)
-                else:
                     user32.SetForegroundWindow(hwnd)
-                    user32.BringWindowToTop(hwnd)
+                finally:
+                    if attached:
+                        user32.AttachThreadInput(cur_thread, fore_thread, False)
             except Exception as e:
                 print(f"[DetailedWindow] Focus activation note: {e}")
 

@@ -53,6 +53,11 @@ class Database:
     def _init_tables(self):
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            try:
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA synchronous=NORMAL")
+            except Exception:
+                pass
             # Clipboard items table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS clipboard_items (

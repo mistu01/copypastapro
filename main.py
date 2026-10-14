@@ -21,7 +21,7 @@ from app.totp_manager import TOTPManager
 from app.image_helper import (
     is_image_file, save_image_from_file, save_image_from_qimage, format_file_size
 )
-from app.hotkey import HotkeyListener
+from app.hotkey import HotkeyListener, configure_windows_clipboard_override
 from app.ui.detailed_window import DetailedWindow
 from app.ui.floating_bar import FloatingBar
 from app.ui.selection_badge import SelectionCopyBadge
@@ -129,6 +129,9 @@ class CopyPastaApp:
         # Show Floating Bar if enabled
         if self.db.get_bool_setting("floating_bar_enabled", True):
             self.floating_bar.show()
+
+        # Ensure native Windows clipboard is restored if app quits or crashes
+        self.app.aboutToQuit.connect(lambda: configure_windows_clipboard_override(disable_native=False))
 
     def _init_tray(self):
         self.tray = QSystemTrayIcon(self.app_icon, self.app)
@@ -413,6 +416,10 @@ class CopyPastaApp:
         self.detailed_window._switch_tab(3)
 
     def quit(self):
+        try:
+            configure_windows_clipboard_override(disable_native=False)
+        except Exception:
+            pass
         self.hotkey_listener.stop()
         self.selection_badge.hide()
         self.screenshot_overlay.close()

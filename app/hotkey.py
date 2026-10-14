@@ -144,8 +144,8 @@ def _get_active_cursor():
 
 def _inspect_point(x: int, y: int):
     """
-    Inspects control, root window, and hit-test code under point (x, y)
-    with a safe 15ms timeout that never hangs hooks.
+    Inspects control, root window under point (x, y) instantly
+    without sending any blocking window messages.
     """
     try:
         pt = wintypes.POINT(x, y)
@@ -164,18 +164,7 @@ def _inspect_point(x: int, y: int):
             user32.GetClassNameW(root_hwnd, r_buf, 256)
             root_class = r_buf.value.lower()
 
-        lparam = ((y & 0xFFFF) << 16) | (x & 0xFFFF)
-        hit_res = wintypes.DWORD(HTCLIENT)
-        user32.SendMessageTimeoutW(
-            hwnd,
-            WM_NCHITTEST,
-            0,
-            lparam,
-            SMTO_ABORTIFHUNG,
-            15,
-            ctypes.byref(hit_res)
-        )
-        return hwnd, ctrl_class, root_class, hit_res.value
+        return hwnd, ctrl_class, root_class, HTCLIENT
     except Exception:
         return 0, "", "", HTCLIENT
 
@@ -184,10 +173,11 @@ def configure_windows_clipboard_override(disable_native: bool = True):
     """
     Configures Windows registry so Windows Explorer does not intercept Win+V
     and disables native Windows Clipboard History flyout in favor of CopyPasta.
+    When disable_native is False, cleanly restores native Windows Clipboard History.
     Only touches Current User (HKCU) - requires no admin elevation.
     """
     try:
-        # 1. Disable Win+V in Windows Explorer hotkey list
+        # 1. Disable / Re-enable Win+V in Windows Explorer hotkey list
         with winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced") as key:
             try:
                 cur_disabled, _ = winreg.QueryValueEx(key, "DisabledHotkeys")
@@ -201,12 +191,22 @@ def configure_windows_clipboard_override(disable_native: bool = True):
             else:
                 if "V" in cur_disabled:
                     new_val = cur_disabled.replace("V", "")
-                    winreg.SetValueEx(key, "DisabledHotkeys", 0, winreg.REG_SZ, new_val)
+                    if new_val:
+                        winreg.SetValueEx(key, "DisabledHotkeys", 0, winreg.REG_SZ, new_val)
+                    else:
+                        try:
+                            winreg.DeleteValue(key, "DisabledHotkeys")
+                        except Exception:
+                            winreg.SetValueEx(key, "DisabledHotkeys", 0, winreg.REG_SZ, "")
 
-        # 2. Turn off built-in Windows 10/11 Clipboard History
+        # 2. Turn on/off built-in Windows 10/11 Clipboard History
         with winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Clipboard") as key:
             val = 0 if disable_native else 1
             winreg.SetValueEx(key, "EnableClipboardHistory", 0, winreg.REG_DWORD, val)
+
+        # 3. Notify Windows Explorer immediately of the setting change
+        # HWND_BROADCAST = 0xFFFF, WM_SETTINGCHANGE = 0x001A
+        user32.PostMessageW(0xFFFF, 0x001A, 0, 0)
 
     except Exception as e:
         print(f"[Hotkey] Note: Could not update Windows clipboard registry: {e}")
@@ -289,6 +289,8 @@ class HotkeyListener(QObject):
             user32.PostThreadMessageW(self._thread_id, WM_QUIT, 0, 0)
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=1.0)
+        # Always restore native Windows clipboard history & Win+V on application stop
+        configure_windows_clipboard_override(disable_native=False)
 
     def _low_level_keyboard_handler(self, nCode, wParam, lParam):
         if nCode >= 0:
@@ -382,17 +384,7 @@ class HotkeyListener(QObject):
                     self._lbutton_down = True
                     self._down_pt = (ms.pt.x, ms.pt.y)
                     self._down_time = now
-                    self._down_cursor = _get_active_cursor()
-
-                    # Inspect origin window, control class, and hit-test
-                    (
-                        _,
-                        self._down_ctrl_class,
-                        self._down_root_class,
-                        self._down_hit
-                    ) = _inspect_point(ms.pt.x, ms.pt.y)
-
-                    # If selection mode was active and user clicks away, dismiss it
+                    # Quick reset of selection mode if clicked elsewhere
                     if self._selection_mode_active:
                         self.selection_cancelled.emit()
 
@@ -404,26 +396,26 @@ class HotkeyListener(QObject):
                         dx = abs(x_up - x_down)
                         dy = abs(y_up - y_down)
                         duration = now - self._down_time
-                        up_cursor = _get_active_cursor()
 
-                        # Inspect release window, control class, and hit-test
-                        (
-                            _,
-                            up_ctrl_class,
-                            up_root_class,
-                            up_hit
-                        ) = _inspect_point(x_up, y_up)
-
-                        if self._is_genuine_text_selection(
-                            x_down, y_down, x_up, y_up,
-                            dx, dy, duration, now,
-                            self._down_ctrl_class, self._down_root_class, self._down_hit, self._down_cursor,
-                            up_ctrl_class, up_root_class, up_hit, up_cursor
-                        ):
-                            self.selection_detected.emit(x_up, y_up)
+                        dt = now - self._last_click_time
+                        dist_from_last = abs(x_up - self._last_click_pt[0]) + abs(y_up - self._last_click_pt[1])
+                        is_double_click = (dt < 0.42 and dist_from_last < 8 and dx < 6 and dy < 6)
+                        is_drag = (dx >= 14 or (dx >= 10 and dy >= 12)) and (0.07 <= duration <= 3.5) and not (dx <= 8 and dy >= 12)
 
                         self._last_click_time = now
                         self._last_click_pt = (x_up, y_up)
+
+                        if is_double_click or is_drag:
+                            up_cursor = _get_active_cursor()
+                            _, up_ctrl_class, up_root_class, _ = _inspect_point(x_up, y_up)
+
+                            if self._is_genuine_text_selection(
+                                x_down, y_down, x_up, y_up,
+                                dx, dy, duration, now,
+                                up_ctrl_class, up_root_class, HTCLIENT, up_cursor,
+                                up_ctrl_class, up_root_class, HTCLIENT, up_cursor
+                            ):
+                                self.selection_detected.emit(x_up, y_up)
 
                 elif wParam in (WM_RBUTTONDOWN, WM_MBUTTONDOWN):
                     if self._selection_mode_active:

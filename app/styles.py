@@ -178,7 +178,6 @@ QFrame.ClipboardCard {
     background-color: rgba(13, 24, 19, 0.65);
     border: 1px solid rgba(16, 185, 129, 0.16);
     border-radius: 11px;
-    padding: 10px 14px;
 }
 
 QFrame.ClipboardCard:hover {
@@ -191,7 +190,6 @@ QFrame.PinnedCard {
     background-color: rgba(245, 158, 11, 0.09);
     border: 1px solid rgba(245, 158, 11, 0.38);
     border-radius: 11px;
-    padding: 10px 14px;
 }
 
 QFrame.PinnedCard:hover {
