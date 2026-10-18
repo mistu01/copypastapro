@@ -1,18 +1,14 @@
-## 📋 Release Notes - Mistus Copy Pasta (v1.3.26)
+## 📋 Release Notes - Mistus Copy Pasta (v1.3.27)
 
-### 🔄 Windows Native Clipboard Restoration (`Win + V`)
-- **Restoration on Application Exit**: Exiting CopyPasta via system tray or closing the app automatically restores Windows 10/11 native `Win + V` clipboard history and broadcasts the update to Windows Explorer immediately.
-- **Restoration on Uninstallation**: Uninstalling CopyPasta cleanly restores `EnableClipboardHistory` and removes any Explorer hotkey overrides, restoring Windows native clipboard functionality without requiring a reboot.
+### 📌 Pinned Items Reordering (Pill Bar & Main Detailed Menu)
+- **Reordering in Main Detailed Menu**:
+  - Each pinned clipping card now features one-click **Up (`↑`)** and **Down (`↓`)** reordering buttons directly in the card action bar.
+  - Right-click context menus on any pinned item now include **Move Up (Main Slot)** and **Move Down (Main Slot)** options for quick slot swapping.
+- **Reordering in Floating Pill Bar**:
+  - Pinned chips in the desktop floating bar can now be reordered via right-click context menu with **Move Left (earlier)** and **Move Right (later)** options.
+  - Position changes update smoothly and immediately across both the pill bar and main detailed window.
 
-### 📌 Clean Tab Separation: Dedicated Pinned View
-- The regular **Clipboard** tab now displays only recent unpinned clippings, removing duplicate pinned entries from the main view.
-- Pinned clippings remain exclusively organized inside their dedicated **Pinned** tab (`Pinned (X/20)`).
-
-### 🖥️ Windows 10 UI Clipping & Button Visibility Fix
-- Fixed an issue where clipboard entries were clipped on Windows 10 causing Pin and Delete buttons to disappear.
-- Action buttons are now anchored in a dedicated, fixed-width right-aligned container.
-- Eliminated double layout padding and added soft-wrapping for long URLs and unbroken strings.
-
-### ⚡ Performance, Stutter & Paste Stability
-- **Lag-Free Mouse & Keyboard Hooks**: Replaced synchronous window hit-tests (`SendMessageTimeout`) in low-level hooks with instant non-blocking Win32 APIs, eliminating hook thread latency and mouse stutter.
-- **Instant & Reliable Pasting**: Streamlined focus restoration with serialized paste execution, atomic modifier releases, and protected thread-input detaching across Windows 10 and Windows 11.
+### ⚡ Blazing-Fast Zero-Lag Performance
+- **Zero-Lag Keyboard Hook**: Added a fast-path bypass for non-hotkey typing keys, eliminating Win32 kernel API round-trips for 99.9% of everyday keystrokes across the OS.
+- **Batched UI Rendering**: Wrapped floating chip and clipboard card rebuilds in batched widget updates (`setUpdatesEnabled`), completely eliminating layout jitter and repainting overhead.
+- **Optimized SQLite In-Memory Caching**: Enabled 8MB SQLite cache and in-memory temporary store pragmas for instantaneous history queries.

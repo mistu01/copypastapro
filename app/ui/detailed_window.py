@@ -819,34 +819,42 @@ class DetailedWindow(QWidget):
         if self.stack.currentIndex() == 1:
             target_scroll = self.page_pinned
             target_container = target_scroll.widget()
-            layout = target_container.layout()
-            self._render_pinned_slots_view(layout, pinned_items, max_pins)
+            target_container.setUpdatesEnabled(False)
+            try:
+                layout = target_container.layout()
+                self._render_pinned_slots_view(layout, pinned_items, max_pins)
+            finally:
+                target_container.setUpdatesEnabled(True)
             return
 
         target_scroll = self.page_all
         target_container = target_scroll.widget()
-        layout = target_container.layout()
+        target_container.setUpdatesEnabled(False)
+        try:
+            layout = target_container.layout()
 
-        while layout.count() > 1:
-            child = layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
+            while layout.count() > 1:
+                child = layout.takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
 
-        if not recent_list:
-            empty_lbl = QLabel("No clipboard items found." if not search_query else f"No matches for '{search_query}'.")
-            empty_lbl.setStyleSheet("color: #64748b; font-size: 13px; padding: 40px; text-align: center;")
-            empty_lbl.setAlignment(Qt.AlignCenter)
-            layout.insertWidget(0, empty_lbl)
-            return
+            if not recent_list:
+                empty_lbl = QLabel("No clipboard items found." if not search_query else f"No matches for '{search_query}'.")
+                empty_lbl.setStyleSheet("color: #64748b; font-size: 13px; padding: 40px; text-align: center;")
+                empty_lbl.setAlignment(Qt.AlignCenter)
+                layout.insertWidget(0, empty_lbl)
+                return
 
-        hdr_title = f"MATCHING CLIPPINGS ({len(recent_list)})" if search_query else f"RECENT CLIPPINGS ({len(recent_list)})"
-        hdr_recent = QLabel(hdr_title)
-        hdr_recent.setProperty("class", "SectionHeader")
-        layout.insertWidget(0, hdr_recent)
+            hdr_title = f"MATCHING CLIPPINGS ({len(recent_list)})" if search_query else f"RECENT CLIPPINGS ({len(recent_list)})"
+            hdr_recent = QLabel(hdr_title)
+            hdr_recent.setProperty("class", "SectionHeader")
+            layout.insertWidget(0, hdr_recent)
 
-        for idx, item in enumerate(recent_list, 1):
-            card = self._build_item_card(item, index=idx)
-            layout.insertWidget(idx, card)
+            for idx, item in enumerate(recent_list, 1):
+                card = self._build_item_card(item, index=idx)
+                layout.insertWidget(idx, card)
+        finally:
+            target_container.setUpdatesEnabled(True)
 
     def _render_pinned_slots_view(self, layout, pinned_items: List[Dict[str, Any]], max_pins: Optional[int] = None):
         if max_pins is None:
@@ -857,7 +865,7 @@ class DetailedWindow(QWidget):
             if child.widget():
                 child.widget().deleteLater()
 
-        hdr = QLabel(f"{max_pins} PINNED SLOTS ({len(pinned_items)} OF {max_pins} USED)")
+        hdr = QLabel(f"{max_pins} PINNED SLOTS ({len(pinned_items)} OF {max_pins} USED) — REORDER WITH ARROWS")
         hdr.setProperty("class", "SectionHeader")
         layout.insertWidget(0, hdr)
 
@@ -865,7 +873,7 @@ class DetailedWindow(QWidget):
 
         for slot_num in range(1, max_pins + 1):
             if slot_num in pinned_by_slot:
-                card = self._build_item_card(pinned_by_slot[slot_num], index=slot_num)
+                card = self._build_item_card(pinned_by_slot[slot_num], index=slot_num, in_pinned_tab=True)
                 layout.insertWidget(slot_num, card)
             else:
                 placeholder = QFrame()
@@ -884,7 +892,7 @@ class DetailedWindow(QWidget):
                 ph_layout.addWidget(ph_lbl)
                 layout.insertWidget(slot_num, placeholder)
 
-    def _build_item_card(self, item: Dict[str, Any], index: Optional[int] = None) -> QFrame:
+    def _build_item_card(self, item: Dict[str, Any], index: Optional[int] = None, in_pinned_tab: bool = False) -> QFrame:
         is_pinned = bool(item["is_pinned"])
         pin_slot = item.get("pin_slot")
         content_type = item.get("content_type", "text")
@@ -1007,6 +1015,26 @@ class DetailedWindow(QWidget):
         btn_layout = QHBoxLayout(btn_box)
         btn_layout.setContentsMargins(0, 0, 0, 0)
         btn_layout.setSpacing(4)
+
+        if is_pinned:
+            # Reorder Up / Down buttons for pinned cards
+            up_btn = QPushButton()
+            up_btn.setIcon(AppIcons.arrow_up(14, "#38bdf8"))
+            up_btn.setIconSize(QSize(14, 14))
+            up_btn.setProperty("class", "IconButton")
+            up_btn.setFixedSize(26, 26)
+            up_btn.setToolTip("Move up one pin slot")
+            up_btn.clicked.connect(lambda _, it=item: self._move_pinned_slot(it, "up"))
+            btn_layout.addWidget(up_btn)
+
+            down_btn = QPushButton()
+            down_btn.setIcon(AppIcons.arrow_down(14, "#38bdf8"))
+            down_btn.setIconSize(QSize(14, 14))
+            down_btn.setProperty("class", "IconButton")
+            down_btn.setFixedSize(26, 26)
+            down_btn.setToolTip("Move down one pin slot")
+            down_btn.clicked.connect(lambda _, it=item: self._move_pinned_slot(it, "down"))
+            btn_layout.addWidget(down_btn)
 
         # Pin / Unpin button
         pin_btn = QPushButton()
@@ -1151,16 +1179,30 @@ class DetailedWindow(QWidget):
         max_pins = self._get_max_pinned_slots()
         if is_pinned:
             act_main_pin = menu.addAction(AppIcons.pin_icon(14, "#f59e0b", filled=False), "Unpin from Main Window")
+            act_main_pin.triggered.connect(lambda: self._toggle_pin(item))
+
+            act_up = menu.addAction(AppIcons.arrow_up(14, "#38bdf8"), "⬆️ Move Up (Main Slot)")
+            act_up.triggered.connect(lambda: self._move_pinned_slot(item, "up"))
+
+            act_down = menu.addAction(AppIcons.arrow_down(14, "#38bdf8"), "⬇️ Move Down (Main Slot)")
+            act_down.triggered.connect(lambda: self._move_pinned_slot(item, "down"))
         else:
             act_main_pin = menu.addAction(AppIcons.pin_icon(14, "#f59e0b", filled=True), f"Pin to Main Window (max {max_pins})")
-        act_main_pin.triggered.connect(lambda: self._toggle_pin(item))
+            act_main_pin.triggered.connect(lambda: self._toggle_pin(item))
 
         is_pill_pinned = bool(item.get("is_pill_pinned"))
         if is_pill_pinned:
             act_pill_pin = menu.addAction(AppIcons.pin_icon(14, "#38bdf8", filled=False), "Unpin from Pill Bar")
+            act_pill_pin.triggered.connect(lambda: self._toggle_pill_pin(item))
+
+            act_pill_left = menu.addAction(AppIcons.arrow_left(14, "#38bdf8"), "⬅️ Move Left in Pill Bar")
+            act_pill_left.triggered.connect(lambda: self._move_pill_slot(item, "left"))
+
+            act_pill_right = menu.addAction(AppIcons.arrow_right(14, "#38bdf8"), "➡️ Move Right in Pill Bar")
+            act_pill_right.triggered.connect(lambda: self._move_pill_slot(item, "right"))
         else:
             act_pill_pin = menu.addAction(AppIcons.pin_icon(14, "#38bdf8", filled=True), "Pin to Pill Bar")
-        act_pill_pin.triggered.connect(lambda: self._toggle_pill_pin(item))
+            act_pill_pin.triggered.connect(lambda: self._toggle_pill_pin(item))
 
         menu.addSeparator()
 
@@ -1171,6 +1213,18 @@ class DetailedWindow(QWidget):
         act_del.triggered.connect(lambda: self._delete_item(item["id"]))
 
         menu.exec(global_pos)
+
+    def _move_pinned_slot(self, item: Dict[str, Any], direction: str):
+        success, msg = self.db.move_pinned_slot(item["id"], direction)
+        self.toast.show_message(msg)
+        self.refresh_clipboard_items()
+        self.pinned_changed.emit()
+
+    def _move_pill_slot(self, item: Dict[str, Any], direction: str):
+        success, msg = self.db.move_pill_pinned_slot(item["id"], direction)
+        self.toast.show_message(msg)
+        self.refresh_clipboard_items()
+        self.pinned_changed.emit()
 
     def _toggle_pill_pin(self, item: Dict[str, Any]):
         item_id = item["id"]

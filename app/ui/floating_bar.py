@@ -338,39 +338,43 @@ class FloatingBar(QWidget):
     def refresh_chips(self):
         self._update_totp_chip()
 
-        # Clear existing history chips
-        while self.chips_layout.count() > 0:
-            item = self.chips_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
-        if self.is_collapsed:
-            self.chips_container.hide()
-            self.adjustSize()
-            return
-
-        self.chips_container.show()
+        self.chips_container.setUpdatesEnabled(False)
         try:
-            bar_limit = int(self.db.get_setting("floating_bar_entry_count", "5"))
-        except ValueError:
-            bar_limit = 5
-        bar_limit = max(1, min(10, bar_limit))
+            # Clear existing history chips
+            while self.chips_layout.count() > 0:
+                item = self.chips_layout.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
 
-        recent_items = self.db.get_floating_bar_items(bar_limit=bar_limit)
-        if not recent_items and not self.totp_container.isVisible():
-            empty_lbl = QLabel("Clipboard empty")
-            empty_lbl.setStyleSheet("color: #64748b; font-size: 11px; padding: 0 4px;")
-            self.chips_layout.addWidget(empty_lbl)
+            if self.is_collapsed:
+                self.chips_container.hide()
+                self.adjustSize()
+                return
+
+            self.chips_container.show()
+            try:
+                bar_limit = int(self.db.get_setting("floating_bar_entry_count", "5"))
+            except ValueError:
+                bar_limit = 5
+            bar_limit = max(1, min(10, bar_limit))
+
+            recent_items = self.db.get_floating_bar_items(bar_limit=bar_limit)
+            if not recent_items and not self.totp_container.isVisible():
+                empty_lbl = QLabel("Clipboard empty")
+                empty_lbl.setStyleSheet("color: #64748b; font-size: 11px; padding: 0 4px;")
+                self.chips_layout.addWidget(empty_lbl)
+                self.adjustSize()
+                self._ensure_within_screen()
+                return
+
+            for item in recent_items:
+                btn = self._build_chip_button(item)
+                self.chips_layout.addWidget(btn)
+
             self.adjustSize()
             self._ensure_within_screen()
-            return
-
-        for item in recent_items:
-            btn = self._build_chip_button(item)
-            self.chips_layout.addWidget(btn)
-
-        self.adjustSize()
-        self._ensure_within_screen()
+        finally:
+            self.chips_container.setUpdatesEnabled(True)
 
     def _build_chip_button(self, item: Dict[str, Any]) -> QPushButton:
         is_img = item.get("content_type") == "image"
@@ -449,14 +453,28 @@ class FloatingBar(QWidget):
         if is_pill_pinned:
             act_pin = menu.addAction(AppIcons.pin_icon(14, "#f59e0b", filled=False), "📌 Unpin from Pill Bar")
             act_pin.triggered.connect(lambda: self._unpin_chip(item))
+
+            act_move_left = menu.addAction(AppIcons.arrow_left(14, "#38bdf8"), "⬅️ Move Left (earlier)")
+            act_move_left.triggered.connect(lambda: self._move_pill_chip(item, "left"))
+
+            act_move_right = menu.addAction(AppIcons.arrow_right(14, "#38bdf8"), "➡️ Move Right (later)")
+            act_move_right.triggered.connect(lambda: self._move_pill_chip(item, "right"))
         else:
             act_pin = menu.addAction(AppIcons.pin_icon(14, "#f59e0b", filled=True), "📌 Pin to Pill Bar")
             act_pin.triggered.connect(lambda: self._pin_chip(item, chip_btn))
+
+        menu.addSeparator()
 
         is_main_pinned = bool(item.get("is_pinned"))
         if is_main_pinned:
             act_main_pin = menu.addAction(AppIcons.pin_icon(14, "#38bdf8", filled=False), "Unpin from Main Window")
             act_main_pin.triggered.connect(lambda: self._unpin_main_window_item(item))
+
+            act_main_up = menu.addAction(AppIcons.arrow_up(14, "#38bdf8"), "⬆️ Move Up (Main Window)")
+            act_main_up.triggered.connect(lambda: self._move_main_window_item(item, "up"))
+
+            act_main_down = menu.addAction(AppIcons.arrow_down(14, "#38bdf8"), "⬇️ Move Down (Main Window)")
+            act_main_down.triggered.connect(lambda: self._move_main_window_item(item, "down"))
         else:
             act_main_pin = menu.addAction(AppIcons.pin_icon(14, "#38bdf8", filled=True), "Pin to Main Window (up to 20)")
             act_main_pin.triggered.connect(lambda: self._pin_main_window_item(item, chip_btn))
@@ -505,6 +523,17 @@ class FloatingBar(QWidget):
         self.db.unpin_pill_item(item_id)
         self.refresh_chips()
         self.pinned_changed.emit()
+
+    def _move_pill_chip(self, item: Dict[str, Any], direction: str):
+        success, msg = self.db.move_pill_pinned_slot(item["id"], direction)
+        if success:
+            self.refresh_chips()
+            self.pinned_changed.emit()
+
+    def _move_main_window_item(self, item: Dict[str, Any], direction: str):
+        success, msg = self.db.move_pinned_slot(item["id"], direction)
+        if success:
+            self.pinned_changed.emit()
 
     def _delete_chip(self, item: Dict[str, Any]):
         item_id = item["id"]

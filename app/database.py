@@ -56,6 +56,8 @@ class Database:
             try:
                 cursor.execute("PRAGMA journal_mode=WAL")
                 cursor.execute("PRAGMA synchronous=NORMAL")
+                cursor.execute("PRAGMA cache_size = -8000")
+                cursor.execute("PRAGMA temp_store = MEMORY")
             except Exception:
                 pass
             # Clipboard items table
@@ -422,6 +424,65 @@ class Database:
             conn.commit()
             return cursor.rowcount > 0
 
+    def move_pill_pinned_slot(self, item_id: int, direction: str) -> Tuple[bool, str]:
+        """
+        Reorder a pinned item in the desktop floating pill bar.
+        direction: 'left' (lower slot number) or 'right' (higher slot number).
+        """
+        direction = direction.lower()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, pill_pin_slot FROM clipboard_items WHERE id = ? AND is_pill_pinned = 1", (item_id,))
+            target = cursor.fetchone()
+            if not target:
+                return False, "Pinned item not found."
+
+            current_slot = target["pill_pin_slot"] or 1
+            cursor.execute("SELECT id, pill_pin_slot FROM clipboard_items WHERE is_pill_pinned = 1 ORDER BY pill_pin_slot ASC, id DESC")
+            all_pinned = [dict(row) for row in cursor.fetchall()]
+
+            idx = next((i for i, it in enumerate(all_pinned) if it["id"] == item_id), None)
+            if idx is None:
+                return False, "Item is not pinned to pill bar."
+
+            if direction in ("left", "up", "earlier"):
+                if idx > 0:
+                    prev_item = all_pinned[idx - 1]
+                    prev_slot = prev_item["pill_pin_slot"]
+                    if prev_slot == current_slot:
+                        prev_slot = max(1, current_slot - 1)
+                    cursor.execute("UPDATE clipboard_items SET pill_pin_slot = ? WHERE id = ?", (prev_slot, item_id))
+                    cursor.execute("UPDATE clipboard_items SET pill_pin_slot = ? WHERE id = ?", (current_slot, prev_item["id"]))
+                    conn.commit()
+                    return True, f"Moved left to slot #{prev_slot}."
+                elif current_slot > 1:
+                    new_slot = current_slot - 1
+                    cursor.execute("UPDATE clipboard_items SET pill_pin_slot = ? WHERE id = ?", (new_slot, item_id))
+                    conn.commit()
+                    return True, f"Moved left to slot #{new_slot}."
+                else:
+                    return False, "Already at leftmost slot in pill bar."
+
+            elif direction in ("right", "down", "later"):
+                if idx < len(all_pinned) - 1:
+                    next_item = all_pinned[idx + 1]
+                    next_slot = next_item["pill_pin_slot"]
+                    if next_slot == current_slot:
+                        next_slot = min(5, current_slot + 1)
+                    cursor.execute("UPDATE clipboard_items SET pill_pin_slot = ? WHERE id = ?", (next_slot, item_id))
+                    cursor.execute("UPDATE clipboard_items SET pill_pin_slot = ? WHERE id = ?", (current_slot, next_item["id"]))
+                    conn.commit()
+                    return True, f"Moved right to slot #{next_slot}."
+                elif current_slot < 5:
+                    new_slot = current_slot + 1
+                    cursor.execute("UPDATE clipboard_items SET pill_pin_slot = ? WHERE id = ?", (new_slot, item_id))
+                    conn.commit()
+                    return True, f"Moved right to slot #{new_slot}."
+                else:
+                    return False, "Already at rightmost slot in pill bar."
+
+            return False, "Invalid direction."
+
     def get_floating_bar_items(self, bar_limit: int = 5) -> List[Dict[str, Any]]:
         """
         Return items specifically for the floating pill bar:
@@ -518,6 +579,71 @@ class Database:
             """, (item_id,))
             conn.commit()
             return cursor.rowcount > 0
+
+    def move_pinned_slot(self, item_id: int, direction: str) -> Tuple[bool, str]:
+        """
+        Reorder a pinned item in the main detailed window pinned slots.
+        direction: 'up' (lower slot number) or 'down' (higher slot number).
+        """
+        try:
+            max_slots = int(self.get_setting("max_pinned_slots", "20"))
+        except ValueError:
+            max_slots = 20
+        max_slots = max(1, min(20, max_slots))
+
+        direction = direction.lower()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, pin_slot FROM clipboard_items WHERE id = ? AND is_pinned = 1", (item_id,))
+            target = cursor.fetchone()
+            if not target:
+                return False, "Pinned item not found."
+
+            current_slot = target["pin_slot"] or 1
+            cursor.execute("SELECT id, pin_slot FROM clipboard_items WHERE is_pinned = 1 ORDER BY pin_slot ASC, last_used_at DESC")
+            all_pinned = [dict(row) for row in cursor.fetchall()]
+
+            idx = next((i for i, it in enumerate(all_pinned) if it["id"] == item_id), None)
+            if idx is None:
+                return False, "Item is not pinned."
+
+            if direction in ("up", "left", "earlier"):
+                if idx > 0:
+                    prev_item = all_pinned[idx - 1]
+                    prev_slot = prev_item["pin_slot"]
+                    if prev_slot == current_slot:
+                        prev_slot = max(1, current_slot - 1)
+                    cursor.execute("UPDATE clipboard_items SET pin_slot = ? WHERE id = ?", (prev_slot, item_id))
+                    cursor.execute("UPDATE clipboard_items SET pin_slot = ? WHERE id = ?", (current_slot, prev_item["id"]))
+                    conn.commit()
+                    return True, f"Moved up to slot #{prev_slot}."
+                elif current_slot > 1:
+                    new_slot = current_slot - 1
+                    cursor.execute("UPDATE clipboard_items SET pin_slot = ? WHERE id = ?", (new_slot, item_id))
+                    conn.commit()
+                    return True, f"Moved up to slot #{new_slot}."
+                else:
+                    return False, "Already at the top slot (#1)."
+
+            elif direction in ("down", "right", "later"):
+                if idx < len(all_pinned) - 1:
+                    next_item = all_pinned[idx + 1]
+                    next_slot = next_item["pin_slot"]
+                    if next_slot == current_slot:
+                        next_slot = min(max_slots, current_slot + 1)
+                    cursor.execute("UPDATE clipboard_items SET pin_slot = ? WHERE id = ?", (next_slot, item_id))
+                    cursor.execute("UPDATE clipboard_items SET pin_slot = ? WHERE id = ?", (current_slot, next_item["id"]))
+                    conn.commit()
+                    return True, f"Moved down to slot #{next_slot}."
+                elif current_slot < max_slots:
+                    new_slot = current_slot + 1
+                    cursor.execute("UPDATE clipboard_items SET pin_slot = ? WHERE id = ?", (new_slot, item_id))
+                    conn.commit()
+                    return True, f"Moved down to slot #{new_slot}."
+                else:
+                    return False, f"Already at the bottom slot (#{max_slots})."
+
+            return False, "Invalid direction."
 
     def delete_item(self, item_id: int) -> bool:
         """Delete an item from clipboard history and remove cached media if applicable."""

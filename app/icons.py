@@ -44,6 +44,14 @@ LUCIDE_SVGS = {
     "undo": """<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>""",
     "save": """<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>""",
     "image": """<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>""",
+    "arrow_up": """<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>""",
+    "arrow_down": """<line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>""",
+    "arrow_left": """<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>""",
+    "arrow_right": """<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>""",
+    "chevron_up": """<polyline points="18 15 12 9 6 15"/>""",
+    "chevron_down": """<polyline points="6 9 12 15 18 9"/>""",
+    "chevron_left": """<polyline points="15 18 9 12 15 6"/>""",
+    "chevron_right": """<polyline points="9 18 15 12 9 6"/>""",
 }
 
 
@@ -194,4 +202,20 @@ class AppIcons(metaclass=AppIconsMeta):
     @classmethod
     def dot(cls, size: int = 16, color: str = "#00f59b") -> QIcon:
         return cls.get("dot", size, color)
+
+    @classmethod
+    def arrow_up(cls, size: int = 14, color: str = "#38bdf8") -> QIcon:
+        return cls.get("arrow_up", size, color, stroke_width=2.0)
+
+    @classmethod
+    def arrow_down(cls, size: int = 14, color: str = "#38bdf8") -> QIcon:
+        return cls.get("arrow_down", size, color, stroke_width=2.0)
+
+    @classmethod
+    def arrow_left(cls, size: int = 14, color: str = "#38bdf8") -> QIcon:
+        return cls.get("arrow_left", size, color, stroke_width=2.0)
+
+    @classmethod
+    def arrow_right(cls, size: int = 14, color: str = "#38bdf8") -> QIcon:
+        return cls.get("arrow_right", size, color, stroke_width=2.0)
 

@@ -302,11 +302,16 @@ class HotkeyListener(QObject):
                 if kb.flags & 0x12:
                     return user32.CallNextHookEx(self.hook_id, nCode, wParam, lParam)
 
+                # Fast path: bypass all API calls for 99.9% of everyday typing when no hotkey/selection is pending
+                vk = kb.vkCode
+                if not self._selection_mode_active and vk not in (VK_V, VK_SNAPSHOT, VK_LWIN, VK_RWIN):
+                    return user32.CallNextHookEx(self.hook_id, nCode, wParam, lParam)
+
                 is_down = wParam in (WM_KEYDOWN, WM_SYSKEYDOWN)
                 is_up = wParam in (WM_KEYUP, WM_SYSKEYUP)
 
                 # Track Windows key state instantly
-                if kb.vkCode in (VK_LWIN, VK_RWIN):
+                if vk in (VK_LWIN, VK_RWIN):
                     if is_down:
                         self._win_down = True
                     elif is_up:
