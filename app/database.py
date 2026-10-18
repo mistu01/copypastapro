@@ -24,12 +24,17 @@ def get_db_path() -> str:
 
 
 def get_media_dir() -> str:
-    """Return the path to the local media directory for cached clipboard images."""
-    app_data = os.environ.get("APPDATA")
-    if app_data:
-        folder = os.path.join(app_data, "CopyPasta", "media")
+    """
+    Return the path to the local media directory for cached clipboard images and screenshots.
+    Stored conveniently in the user's Pictures/CopyPasta directory instead of Program Files
+    or hidden internal directories.
+    """
+    user_profile = os.environ.get("USERPROFILE") or os.path.expanduser("~")
+    pictures_dir = os.path.join(user_profile, "Pictures")
+    if os.path.exists(pictures_dir):
+        folder = os.path.join(pictures_dir, "CopyPasta")
     else:
-        folder = os.path.join(os.path.expanduser("~"), ".copypasta", "media")
+        folder = os.path.join(user_profile, "Documents", "CopyPasta")
     os.makedirs(folder, exist_ok=True)
     return folder
 

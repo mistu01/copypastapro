@@ -9,6 +9,7 @@ Provides instant screen snipping on PrintScreen key interception:
 - Actions: Copy to clipboard (Enter / Ctrl+C / double-click), Save to file (Ctrl+S), Close (Esc)
 """
 
+import os
 import math
 import time
 from typing import List, Optional, Tuple, Dict, Any
@@ -22,6 +23,19 @@ from PySide6.QtWidgets import (
     QWidget, QApplication, QFileDialog, QLineEdit, QFrame,
     QHBoxLayout, QVBoxLayout, QPushButton, QLabel
 )
+
+
+def get_default_screenshot_dir() -> str:
+    """Return the user Desktop directory as the default screenshot save location."""
+    user_profile = os.environ.get("USERPROFILE") or os.path.expanduser("~")
+    desktop_dir = os.path.join(user_profile, "Desktop")
+    if os.path.exists(desktop_dir):
+        return desktop_dir
+    pictures_dir = os.path.join(user_profile, "Pictures")
+    if os.path.exists(pictures_dir):
+        return pictures_dir
+    return user_profile
+
 
 from app.icons import AppIcons
 
@@ -813,10 +827,11 @@ class ScreenshotOverlay(QWidget):
             return
 
         default_name = f"Screenshot_{time.strftime('%Y%m%d_%H%M%S')}.png"
+        default_path = os.path.join(get_default_screenshot_dir(), default_name)
         filepath, _ = QFileDialog.getSaveFileName(
             self,
             "Save Screenshot",
-            default_name,
+            default_path,
             "PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;All Files (*.*)"
         )
         if filepath:
