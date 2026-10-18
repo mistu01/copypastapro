@@ -15,8 +15,8 @@ from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QLabel, QPushButton, QFrame,
     QMenu, QApplication, QToolTip
 )
-from PySide6.QtCore import Qt, QPoint, Signal, QTimer, QSize, QRect
-from PySide6.QtGui import QAction, QCursor
+from PySide6.QtCore import Qt, QPoint, Signal, QTimer, QSize, QRect, QMimeData
+from PySide6.QtGui import QAction, QCursor, QDrag, QPixmap, QPainter, QColor
 
 
 from app.database import Database
@@ -57,18 +57,91 @@ class DragHandleButton(QPushButton):
 
 
 class FloatingChipButton(QPushButton):
-    """Interactive chip button representing a clipboard entry in the pill bar."""
+    """
+    Interactive chip button representing a clipboard entry in the pill bar.
+    Supports right-click context menu, click-to-paste, and mouse hold drag-and-drop
+    for flexibly moving and reordering pinned chips.
+    """
     right_clicked = Signal(QPoint)
+    chip_dropped_on = Signal(int, int)  # (source_item_id, target_item_id)
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.item_data: Optional[Dict[str, Any]] = None
+        self._drag_start_pos: Optional[QPoint] = None
+        self.setAcceptDrops(True)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.RightButton:
             event.accept()
             self.right_clicked.emit(event.globalPosition().toPoint())
             return
+        elif event.button() == Qt.LeftButton:
+            self._drag_start_pos = event.position().toPoint()
         super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() & Qt.LeftButton and self._drag_start_pos and self.item_data:
+            dist = (event.position().toPoint() - self._drag_start_pos).manhattanLength()
+            if dist >= QApplication.startDragDistance():
+                # Only initiate drag if the chip is pinned to pill bar
+                if self.item_data.get("is_pill_pinned"):
+                    self._start_chip_drag()
+                    return
+        super().mouseMoveEvent(event)
+
+    def _start_chip_drag(self):
+        drag = QDrag(self)
+        mime = QMimeData()
+        mime.setData("application/x-copypasta-pill-chip", str(self.item_data["id"]).encode("utf-8"))
+        drag.setMimeData(mime)
+
+        # Render preview pixmap
+        pixmap = self.grab()
+        # Add semi-transparency to the drag ghost
+        transparent_pixmap = QPixmap(pixmap.size())
+        transparent_pixmap.fill(Qt.transparent)
+        painter = QPainter(transparent_pixmap)
+        painter.setOpacity(0.85)
+        painter.drawPixmap(0, 0, pixmap)
+        painter.end()
+
+        drag.setPixmap(transparent_pixmap)
+        drag.setHotSpot(QPoint(pixmap.width() // 2, pixmap.height() // 2))
+
+        # Show visual feedback on this button while dragging
+        self.setDown(False)
+        self.setStyleSheet("opacity: 0.4; border: 1px dashed #38bdf8;")
+        drag.exec(Qt.MoveAction)
+        self.setStyleSheet("")
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat("application/x-copypasta-pill-chip"):
+            event.acceptProposedAction()
+            if self.item_data and self.item_data.get("is_pill_pinned"):
+                self.setStyleSheet("border: 2px solid #00f59b; background: rgba(0, 245, 155, 0.2);")
+        else:
+            super().dragEnterEvent(event)
+
+    def dragLeaveEvent(self, event):
+        self.setStyleSheet("")
+        super().dragLeaveEvent(event)
+
+    def dropEvent(self, event):
+        self.setStyleSheet("")
+        if event.mimeData().hasFormat("application/x-copypasta-pill-chip"):
+            try:
+                source_id_str = bytes(event.mimeData().data("application/x-copypasta-pill-chip")).decode("utf-8")
+                source_id = int(source_id_str)
+                if self.item_data and self.item_data.get("id"):
+                    target_id = self.item_data["id"]
+                    if source_id != target_id:
+                        self.chip_dropped_on.emit(source_id, target_id)
+                event.acceptProposedAction()
+                return
+            except Exception as e:
+                print(f"[FloatingChipButton] Drop handling error: {e}")
+        super().dropEvent(event)
 
 
 class FloatingBar(QWidget):
@@ -395,9 +468,11 @@ class FloatingBar(QWidget):
             preview = (content[:16] + "…") if len(content) > 16 else content
 
         btn = FloatingChipButton()
+        btn.item_data = item
         is_pill_pinned = bool(item.get("is_pill_pinned"))
         if is_pill_pinned:
             btn.setProperty("class", "FloatingChipPinned")
+            btn.setToolTip("📌 Drag & Drop with mouse to reorder • Click to paste • Right-click for options")
         else:
             btn.setProperty("class", "FloatingChip")
         btn.setIconSize(QSize(14, 14))
@@ -418,7 +493,7 @@ class FloatingBar(QWidget):
 
         btn.setText(f" {preview}")
 
-        pin_label = "📌 Pinned to Pill Bar • " if is_pill_pinned else ""
+        pin_label = "📌 Pinned to Pill Bar (Hold & drag mouse to reorder) • " if is_pill_pinned else ""
         if is_img:
             btn.setToolTip(f"{pin_label}Image: {preview}\nDimensions: {meta.get('width', 0)} × {meta.get('height', 0)} px\n\nClick to copy & paste • Right-click to Pin or Delete")
         else:
@@ -426,7 +501,15 @@ class FloatingBar(QWidget):
         btn.setCursor(Qt.PointingHandCursor)
         btn.clicked.connect(lambda _, it=item: self._on_chip_clicked(it))
         btn.right_clicked.connect(lambda global_pos, it=item, b=btn: self._show_chip_context_menu(global_pos, it, b))
+        btn.chip_dropped_on.connect(self._on_chip_reorder_drop)
         return btn
+
+    def _on_chip_reorder_drop(self, source_id: int, target_id: int):
+        """Handle mouse drag-and-drop reordering between two pinned pill chips."""
+        if self.db.swap_pill_pinned_slots(source_id, target_id):
+            self.refresh_chips()
+            self.pinned_changed.emit()
+
 
     def _show_chip_context_menu(self, global_pos: QPoint, item: Dict[str, Any], chip_btn: QPushButton):
         menu = QMenu(self)

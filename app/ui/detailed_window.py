@@ -15,8 +15,8 @@ from PySide6.QtWidgets import (
     QProgressBar, QMessageBox, QSlider, QCheckBox, QComboBox,
     QGraphicsDropShadowEffect, QApplication, QSizePolicy
 )
-from PySide6.QtCore import Qt, QTimer, Signal, QPoint, QSize
-from PySide6.QtGui import QColor, QPixmap, QKeySequence, QShortcut
+from PySide6.QtCore import Qt, QTimer, Signal, QPoint, QSize, QMimeData
+from PySide6.QtGui import QColor, QPixmap, QKeySequence, QShortcut, QDrag, QPainter
 
 from app.database import Database
 from app.totp_manager import TOTPManager
@@ -30,6 +30,213 @@ from app.version import APP_NAME, APP_VERSION
 
 user32 = ctypes.windll.user32
 kernel32 = ctypes.windll.kernel32
+
+
+class PinnedCardDragHandle(QPushButton):
+    """
+    Dedicated drag handle button on pinned cards in the detailed menu.
+    Allows mouse hold & drag to smoothly reorder pinned slots.
+    """
+    def __init__(self, item_data: Dict[str, Any], parent_card: QWidget, parent=None):
+        super().__init__(parent)
+        self.item_data = item_data
+        self.parent_card = parent_card
+        self._drag_start_pos: Optional[QPoint] = None
+        self.setProperty("class", "DragGripBtn")
+        self.setIcon(AppIcons.drag_grip(16, "#38bdf8"))
+        self.setIconSize(QSize(16, 16))
+        self.setFixedSize(22, 26)
+        self.setCursor(Qt.SizeAllCursor)
+        self.setToolTip("Hold and drag mouse to move & reorder pinned slot")
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._drag_start_pos = event.position().toPoint()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() & Qt.LeftButton and self._drag_start_pos:
+            dist = (event.position().toPoint() - self._drag_start_pos).manhattanLength()
+            if dist >= QApplication.startDragDistance():
+                self._start_drag()
+                return
+        super().mouseMoveEvent(event)
+
+    def _start_drag(self):
+        drag = QDrag(self)
+        mime = QMimeData()
+        mime.setData("application/x-copypasta-main-pin", str(self.item_data["id"]).encode("utf-8"))
+        drag.setMimeData(mime)
+
+        pixmap = self.parent_card.grab()
+        # Create subtle transparent ghost
+        ghost = QPixmap(pixmap.size())
+        ghost.fill(Qt.transparent)
+        painter = QPainter(ghost)
+        painter.setOpacity(0.80)
+        painter.drawPixmap(0, 0, pixmap)
+        painter.end()
+
+        drag.setPixmap(ghost)
+        drag.setHotSpot(QPoint(min(120, ghost.width() // 4), min(30, ghost.height() // 2)))
+
+        self.parent_card.setStyleSheet("opacity: 0.35; border: 1px dashed #38bdf8;")
+        drag.exec(Qt.MoveAction)
+        self.parent_card.setStyleSheet("")
+
+
+class EmptyPinnedSlotDropFrame(QFrame):
+    """
+    An empty slot frame that accepts drops from dragged pinned cards.
+    """
+    slot_dropped = Signal(int, int)  # (source_item_id, target_slot_number)
+
+    def __init__(self, slot_num: int, parent=None):
+        super().__init__(parent)
+        self.slot_num = slot_num
+        self.setObjectName(f"EmptySlotFrame_{slot_num}")
+        self.setAcceptDrops(True)
+        self.setStyleSheet(f"""
+            QFrame#EmptySlotFrame_{slot_num} {{
+                background: rgba(255, 255, 255, 0.02);
+                border: 1px dashed rgba(255, 255, 255, 0.12);
+                border-radius: 9px;
+            }}
+        """)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat("application/x-copypasta-main-pin"):
+            event.acceptProposedAction()
+            self.setStyleSheet(f"""
+                QFrame#EmptySlotFrame_{self.slot_num} {{
+                    background: rgba(0, 245, 155, 0.15);
+                    border: 2px dashed #00f59b;
+                    border-radius: 9px;
+                }}
+            """)
+        else:
+            super().dragEnterEvent(event)
+
+    def dragLeaveEvent(self, event):
+        self.setStyleSheet(f"""
+            QFrame#EmptySlotFrame_{self.slot_num} {{
+                background: rgba(255, 255, 255, 0.02);
+                border: 1px dashed rgba(255, 255, 255, 0.12);
+                border-radius: 9px;
+            }}
+        """)
+        super().dragLeaveEvent(event)
+
+    def dropEvent(self, event):
+        self.setStyleSheet(f"""
+            QFrame#EmptySlotFrame_{self.slot_num} {{
+                background: rgba(255, 255, 255, 0.02);
+                border: 1px dashed rgba(255, 255, 255, 0.12);
+                border-radius: 9px;
+            }}
+        """)
+        if event.mimeData().hasFormat("application/x-copypasta-main-pin"):
+            try:
+                src_id = int(bytes(event.mimeData().data("application/x-copypasta-main-pin")).decode("utf-8"))
+                self.slot_dropped.emit(src_id, self.slot_num)
+                event.acceptProposedAction()
+                return
+            except Exception as e:
+                print(f"[EmptyPinnedSlotDropFrame] drop error: {e}")
+        super().dropEvent(event)
+
+
+class ClipboardCardFrame(QFrame):
+    """
+    Card frame that supports mouse-hold drag initiation and drop targeting
+    when the card is a pinned item.
+    """
+    card_dropped_on = Signal(int, int)  # (source_item_id, target_item_id)
+    left_clicked = Signal()
+    right_clicked = Signal(QPoint)
+
+    def __init__(self, item: Dict[str, Any], in_pinned_tab: bool = False, parent=None):
+        super().__init__(parent)
+        self.item_data = item
+        self.in_pinned_tab = in_pinned_tab
+        self._drag_start_pos: Optional[QPoint] = None
+        self.setAcceptDrops(True)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.RightButton:
+            event.accept()
+            self.right_clicked.emit(event.globalPosition().toPoint())
+            return
+        elif event.button() == Qt.LeftButton:
+            self._drag_start_pos = event.position().toPoint()
+            # If not pinned, don't prevent normal click
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() & Qt.LeftButton and self._drag_start_pos and self.item_data.get("is_pinned"):
+            dist = (event.position().toPoint() - self._drag_start_pos).manhattanLength()
+            if dist >= QApplication.startDragDistance():
+                self._start_card_drag()
+                return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton and self._drag_start_pos:
+            dist = (event.position().toPoint() - self._drag_start_pos).manhattanLength()
+            if dist < QApplication.startDragDistance():
+                self.left_clicked.emit()
+            self._drag_start_pos = None
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def _start_card_drag(self):
+        drag = QDrag(self)
+        mime = QMimeData()
+        mime.setData("application/x-copypasta-main-pin", str(self.item_data["id"]).encode("utf-8"))
+        drag.setMimeData(mime)
+
+        pixmap = self.grab()
+        ghost = QPixmap(pixmap.size())
+        ghost.fill(Qt.transparent)
+        painter = QPainter(ghost)
+        painter.setOpacity(0.80)
+        painter.drawPixmap(0, 0, pixmap)
+        painter.end()
+
+        drag.setPixmap(ghost)
+        drag.setHotSpot(QPoint(min(120, ghost.width() // 4), min(30, ghost.height() // 2)))
+
+        self.setStyleSheet("opacity: 0.35; border: 1px dashed #38bdf8;")
+        drag.exec(Qt.MoveAction)
+        self.setStyleSheet("")
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat("application/x-copypasta-main-pin") and self.item_data.get("is_pinned"):
+            event.acceptProposedAction()
+            self.setStyleSheet("border: 2px solid #00f59b; background: rgba(0, 245, 155, 0.15);")
+        else:
+            super().dragEnterEvent(event)
+
+    def dragLeaveEvent(self, event):
+        self.setStyleSheet("")
+        super().dragLeaveEvent(event)
+
+    def dropEvent(self, event):
+        self.setStyleSheet("")
+        if event.mimeData().hasFormat("application/x-copypasta-main-pin") and self.item_data.get("is_pinned"):
+            try:
+                src_id = int(bytes(event.mimeData().data("application/x-copypasta-main-pin")).decode("utf-8"))
+                target_id = self.item_data["id"]
+                if src_id != target_id:
+                    self.card_dropped_on.emit(src_id, target_id)
+                event.acceptProposedAction()
+                return
+            except Exception as e:
+                print(f"[ClipboardCardFrame] drop error: {e}")
+        super().dropEvent(event)
 
 
 class DetailedWindow(QWidget):
@@ -865,7 +1072,7 @@ class DetailedWindow(QWidget):
             if child.widget():
                 child.widget().deleteLater()
 
-        hdr = QLabel(f"{max_pins} PINNED SLOTS ({len(pinned_items)} OF {max_pins} USED) — REORDER WITH ARROWS")
+        hdr = QLabel(f"{max_pins} PINNED SLOTS ({len(pinned_items)} OF {max_pins} USED) — DRAG WITH MOUSE OR USE ARROWS TO REORDER")
         hdr.setProperty("class", "SectionHeader")
         layout.insertWidget(0, hdr)
 
@@ -876,20 +1083,13 @@ class DetailedWindow(QWidget):
                 card = self._build_item_card(pinned_by_slot[slot_num], index=slot_num, in_pinned_tab=True)
                 layout.insertWidget(slot_num, card)
             else:
-                placeholder = QFrame()
-                placeholder.setObjectName(f"EmptySlotFrame_{slot_num}")
-                placeholder.setStyleSheet(f"""
-                    QFrame#EmptySlotFrame_{slot_num} {{
-                        background: rgba(255, 255, 255, 0.02);
-                        border: 1px dashed rgba(255, 255, 255, 0.12);
-                        border-radius: 9px;
-                    }}
-                """)
+                placeholder = EmptyPinnedSlotDropFrame(slot_num)
                 ph_layout = QHBoxLayout(placeholder)
                 ph_layout.setContentsMargins(14, 10, 14, 10)
-                ph_lbl = QLabel(f"Slot #{slot_num}: (Empty) \u2014 Click pin on any clipping to reserve here")
+                ph_lbl = QLabel(f"Slot #{slot_num}: (Empty) — Drag pinned item here or click pin to reserve")
                 ph_lbl.setStyleSheet("color: #94a3b8; font-size: 12px; background: transparent; border: none;")
                 ph_layout.addWidget(ph_lbl)
+                placeholder.slot_dropped.connect(self._on_pinned_slot_dropped)
                 layout.insertWidget(slot_num, placeholder)
 
     def _build_item_card(self, item: Dict[str, Any], index: Optional[int] = None, in_pinned_tab: bool = False) -> QFrame:
@@ -897,7 +1097,7 @@ class DetailedWindow(QWidget):
         pin_slot = item.get("pin_slot")
         content_type = item.get("content_type", "text")
 
-        card = QFrame()
+        card = ClipboardCardFrame(item, in_pinned_tab=in_pinned_tab)
         card.setProperty("class", "PinnedCard" if is_pinned else "ClipboardCard")
         card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         card.setCursor(Qt.PointingHandCursor)
@@ -1017,6 +1217,10 @@ class DetailedWindow(QWidget):
         btn_layout.setSpacing(4)
 
         if is_pinned:
+            # Reorder drag handle: hold & drag with mouse to move slot freely
+            drag_handle = PinnedCardDragHandle(item, card)
+            btn_layout.addWidget(drag_handle)
+
             # Reorder Up / Down buttons for pinned cards
             up_btn = QPushButton()
             up_btn.setIcon(AppIcons.arrow_up(14, "#38bdf8"))
@@ -1140,19 +1344,24 @@ class DetailedWindow(QWidget):
             content_lbl.setMinimumWidth(0)
             card_layout.addWidget(content_lbl)
 
-        # Ensure clicking anywhere on the card (text, badges, metadata) triggers direct paste
-        for child in card.findChildren(QWidget):
-            if not isinstance(child, QPushButton):
-                child.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-
-        def _on_card_clicked(event, it=item):
-            if event.button() == Qt.LeftButton:
-                self._select_and_paste(it)
-            elif event.button() == Qt.RightButton:
-                self._show_card_context_menu(event.globalPosition().toPoint(), it)
-
-        card.mousePressEvent = _on_card_clicked
+        card.left_clicked.connect(lambda it=item: self._select_and_paste(it))
+        card.right_clicked.connect(lambda global_pos, it=item: self._show_card_context_menu(global_pos, it))
+        card.card_dropped_on.connect(self._on_pinned_card_dropped_on)
         return card
+
+    def _on_pinned_card_dropped_on(self, source_id: int, target_id: int):
+        """Handle mouse drag-and-drop reordering between two pinned cards."""
+        if self.db.swap_pinned_slots(source_id, target_id):
+            self.refresh_clipboard_items()
+            self.pinned_changed.emit()
+            self.toast.show_message("Pinned slots reordered")
+
+    def _on_pinned_slot_dropped(self, source_id: int, target_slot: int):
+        """Handle mouse drag-and-drop onto an empty pin slot placeholder."""
+        if self.db.set_pinned_slot(source_id, target_slot):
+            self.refresh_clipboard_items()
+            self.pinned_changed.emit()
+            self.toast.show_message(f"Moved to Pin Slot #{target_slot}")
 
     def _show_card_context_menu(self, global_pos: QPoint, item: Dict[str, Any]):
         menu = QMenu(self)

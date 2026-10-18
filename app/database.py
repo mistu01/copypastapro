@@ -483,6 +483,26 @@ class Database:
 
             return False, "Invalid direction."
 
+    def swap_pill_pinned_slots(self, item_a_id: int, item_b_id: int) -> bool:
+        """
+        Directly swap the pill_pin_slot of two items pinned to the pill bar.
+        Used for smooth mouse drag-and-drop reordering.
+        """
+        if item_a_id == item_b_id:
+            return True
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, pill_pin_slot FROM clipboard_items WHERE id IN (?, ?) AND is_pill_pinned = 1", (item_a_id, item_b_id))
+            items = {row["id"]: row["pill_pin_slot"] for row in cursor.fetchall()}
+            if len(items) != 2:
+                return False
+            slot_a = items[item_a_id]
+            slot_b = items[item_b_id]
+            cursor.execute("UPDATE clipboard_items SET pill_pin_slot = ? WHERE id = ?", (slot_b, item_a_id))
+            cursor.execute("UPDATE clipboard_items SET pill_pin_slot = ? WHERE id = ?", (slot_a, item_b_id))
+            conn.commit()
+            return True
+
     def get_floating_bar_items(self, bar_limit: int = 5) -> List[Dict[str, Any]]:
         """
         Return items specifically for the floating pill bar:
@@ -644,6 +664,57 @@ class Database:
                     return False, f"Already at the bottom slot (#{max_slots})."
 
             return False, "Invalid direction."
+
+    def swap_pinned_slots(self, item_a_id: int, item_b_id: int) -> bool:
+        """
+        Directly swap the pin_slot of two items pinned in the main detailed menu.
+        Used for smooth mouse drag-and-drop reordering.
+        """
+        if item_a_id == item_b_id:
+            return True
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, pin_slot FROM clipboard_items WHERE id IN (?, ?) AND is_pinned = 1", (item_a_id, item_b_id))
+            items = {row["id"]: row["pin_slot"] for row in cursor.fetchall()}
+            if len(items) != 2:
+                return False
+            slot_a = items[item_a_id]
+            slot_b = items[item_b_id]
+            cursor.execute("UPDATE clipboard_items SET pin_slot = ? WHERE id = ?", (slot_b, item_a_id))
+            cursor.execute("UPDATE clipboard_items SET pin_slot = ? WHERE id = ?", (slot_a, item_b_id))
+            conn.commit()
+            return True
+
+    def set_pinned_slot(self, item_id: int, target_slot: int) -> bool:
+        """
+        Move or assign a pinned item to a specific target_slot (1..20).
+        If another item occupies target_slot, they are swapped or shifted.
+        """
+        try:
+            max_slots = int(self.get_setting("max_pinned_slots", "20"))
+        except ValueError:
+            max_slots = 20
+        max_slots = max(1, min(20, max_slots))
+        if target_slot < 1 or target_slot > max_slots:
+            return False
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, pin_slot FROM clipboard_items WHERE id = ? AND is_pinned = 1", (item_id,))
+            source = cursor.fetchone()
+            if not source:
+                return False
+            old_slot = source["pin_slot"]
+            if old_slot == target_slot:
+                return True
+
+            cursor.execute("SELECT id FROM clipboard_items WHERE pin_slot = ? AND is_pinned = 1", (target_slot,))
+            occupant = cursor.fetchone()
+            if occupant:
+                cursor.execute("UPDATE clipboard_items SET pin_slot = ? WHERE id = ?", (old_slot, occupant["id"]))
+            cursor.execute("UPDATE clipboard_items SET pin_slot = ? WHERE id = ?", (target_slot, item_id))
+            conn.commit()
+            return True
 
     def delete_item(self, item_id: int) -> bool:
         """Delete an item from clipboard history and remove cached media if applicable."""
