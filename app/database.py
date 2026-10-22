@@ -309,7 +309,9 @@ class Database:
 
     def get_history(self, search: str = "", limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """
-        Return history with pinned items first (slots 1..10), then recent items by last_used_at DESC.
+        Return history with pinned items first (slots 1..20), then unpinned items by id DESC.
+        Ordering unpinned items by id DESC ensures that selecting/pasting an entry
+        never changes its position in the clipboard history list.
         If limit is None, defaults to the user's max_history_count setting.
         """
         if limit is None:
@@ -325,19 +327,19 @@ class Database:
                 cursor.execute("""
                     SELECT * FROM clipboard_items
                     WHERE content LIKE ?
-                    ORDER BY is_pinned DESC, pin_slot ASC, last_used_at DESC
+                    ORDER BY is_pinned DESC, pin_slot ASC, id DESC
                     LIMIT ?
                 """, (query, limit))
             else:
                 cursor.execute("""
                     SELECT * FROM clipboard_items
-                    ORDER BY is_pinned DESC, pin_slot ASC, last_used_at DESC
+                    ORDER BY is_pinned DESC, pin_slot ASC, id DESC
                     LIMIT ?
                 """, (limit,))
             return [dict(row) for row in cursor.fetchall()]
 
     def get_pinned_items(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Return the pinned items (up to configured limit, max 20), ordered by pin_slot ASC."""
+        """Return the pinned items (up to configured limit, max 20), ordered by pin_slot ASC, id DESC."""
         if limit is None:
             try:
                 limit = int(self.get_setting("max_pinned_slots", "20"))
@@ -349,7 +351,7 @@ class Database:
             cursor.execute("""
                 SELECT * FROM clipboard_items
                 WHERE is_pinned = 1
-                ORDER BY pin_slot ASC, last_used_at DESC
+                ORDER BY pin_slot ASC, id DESC
                 LIMIT ?
             """, (limit,))
             return [dict(row) for row in cursor.fetchall()]
@@ -625,7 +627,7 @@ class Database:
                 return False, "Pinned item not found."
 
             current_slot = target["pin_slot"] or 1
-            cursor.execute("SELECT id, pin_slot FROM clipboard_items WHERE is_pinned = 1 ORDER BY pin_slot ASC, last_used_at DESC")
+            cursor.execute("SELECT id, pin_slot FROM clipboard_items WHERE is_pinned = 1 ORDER BY pin_slot ASC, id DESC")
             all_pinned = [dict(row) for row in cursor.fetchall()]
 
             idx = next((i for i, it in enumerate(all_pinned) if it["id"] == item_id), None)

@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-#define MyAppVersion "1.3.29"
+#define MyAppVersion "1.3.30"
 #endif
 #define MyAppName "Mistus Copy Pasta"
 #define MyAppPublisher "Mistus Project"

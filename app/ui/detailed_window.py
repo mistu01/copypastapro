@@ -1026,42 +1026,47 @@ class DetailedWindow(QWidget):
         if self.stack.currentIndex() == 1:
             target_scroll = self.page_pinned
             target_container = target_scroll.widget()
-            target_container.setUpdatesEnabled(False)
-            try:
-                layout = target_container.layout()
-                self._render_pinned_slots_view(layout, pinned_items, max_pins)
-            finally:
-                target_container.setUpdatesEnabled(True)
+            layout = target_container.layout()
+            self._render_pinned_slots_view(layout, pinned_items, max_pins)
+            layout.activate()
+            target_container.adjustSize()
+            QApplication.sendPostedEvents()
             return
 
         target_scroll = self.page_all
         target_container = target_scroll.widget()
-        target_container.setUpdatesEnabled(False)
-        try:
-            layout = target_container.layout()
+        layout = target_container.layout()
 
-            while layout.count() > 1:
-                child = layout.takeAt(0)
-                if child.widget():
-                    child.widget().deleteLater()
+        while layout.count() > 1:
+            child = layout.takeAt(0)
+            widget = child.widget()
+            if widget:
+                widget.hide()
+                widget.setParent(None)
+                widget.deleteLater()
 
-            if not recent_list:
-                empty_lbl = QLabel("No clipboard items found." if not search_query else f"No matches for '{search_query}'.")
-                empty_lbl.setStyleSheet("color: #64748b; font-size: 13px; padding: 40px; text-align: center;")
-                empty_lbl.setAlignment(Qt.AlignCenter)
-                layout.insertWidget(0, empty_lbl)
-                return
+        if not recent_list:
+            empty_lbl = QLabel("No clipboard items found." if not search_query else f"No matches for '{search_query}'.")
+            empty_lbl.setStyleSheet("color: #64748b; font-size: 13px; padding: 40px; text-align: center;")
+            empty_lbl.setAlignment(Qt.AlignCenter)
+            layout.insertWidget(0, empty_lbl)
+            layout.activate()
+            target_container.adjustSize()
+            QApplication.sendPostedEvents()
+            return
 
-            hdr_title = f"MATCHING CLIPPINGS ({len(recent_list)})" if search_query else f"RECENT CLIPPINGS ({len(recent_list)})"
-            hdr_recent = QLabel(hdr_title)
-            hdr_recent.setProperty("class", "SectionHeader")
-            layout.insertWidget(0, hdr_recent)
+        hdr_title = f"MATCHING CLIPPINGS ({len(recent_list)})" if search_query else f"RECENT CLIPPINGS ({len(recent_list)})"
+        hdr_recent = QLabel(hdr_title)
+        hdr_recent.setProperty("class", "SectionHeader")
+        layout.insertWidget(0, hdr_recent)
 
-            for idx, item in enumerate(recent_list, 1):
-                card = self._build_item_card(item, index=idx)
-                layout.insertWidget(idx, card)
-        finally:
-            target_container.setUpdatesEnabled(True)
+        for idx, item in enumerate(recent_list, 1):
+            card = self._build_item_card(item, index=idx)
+            layout.insertWidget(idx, card)
+
+        layout.activate()
+        target_container.adjustSize()
+        QApplication.sendPostedEvents()
 
     def _render_pinned_slots_view(self, layout, pinned_items: List[Dict[str, Any]], max_pins: Optional[int] = None):
         if max_pins is None:
@@ -1069,8 +1074,11 @@ class DetailedWindow(QWidget):
 
         while layout.count() > 1:
             child = layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
+            widget = child.widget()
+            if widget:
+                widget.hide()
+                widget.setParent(None)
+                widget.deleteLater()
 
         hdr = QLabel(f"{max_pins} PINNED SLOTS ({len(pinned_items)} OF {max_pins} USED) — DRAG WITH MOUSE OR USE ARROWS TO REORDER")
         hdr.setProperty("class", "SectionHeader")
