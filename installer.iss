@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-#define MyAppVersion "1.3.30"
+#define MyAppVersion "1.3.31"
 #endif
 #define MyAppName "Mistus Copy Pasta"
 #define MyAppPublisher "Mistus Project"
@@ -44,6 +44,8 @@ AlwaysShowGroupOnReadyPage=yes
 ; Permissions & System integration
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
+CloseApplications=yes
+RestartApplications=no
 UninstallDisplayIcon={app}\app_icon.ico
 UninstallDisplayName={#MyAppName} (Clipboard Manager & 2FA)
 VersionInfoDescription={#MyAppName} Setup
@@ -84,6 +86,8 @@ Root: HKLM; Subkey: "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{#MyApp
 ; App Info
 Root: HKCU; Subkey: "Software\{#MyAppName}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\{#MyAppName}"; ValueType: string; ValueName: "Version"; ValueData: "{#MyAppVersion}"; Flags: uninsdeletekey
+; Ensure native Windows Clipboard History is re-enabled on uninstall
+Root: HKCU; Subkey: "Software\Microsoft\Clipboard"; ValueType: dword; ValueName: "EnableClipboardHistory"; ValueData: "1"; Flags: uninssetvalue
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
@@ -96,31 +100,55 @@ Type: files; Name: "{app}\*.bmp"
 function PostMessage(hWnd: HWND; Msg: Cardinal; wParam: LongInt; lParam: LongInt): Boolean;
 external 'PostMessageW@user32.dll stdcall';
 
-procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+function InitializeSetup(): Boolean;
+var
+  ResultCode: Integer;
+begin
+  Exec('taskkill.exe', '/f /im {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := True;
+end;
+
+function InitializeUninstall(): Boolean;
+var
+  ResultCode: Integer;
+begin
+  Exec('taskkill.exe', '/f /im {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := True;
+end;
+
+procedure RestoreNativeClipboard();
 var
   DisabledHotkeys: String;
 begin
-  if CurUninstallStep = usUninstall then
+  // 1. Re-enable native Windows 10/11 Clipboard History
+  RegWriteDWordValue(HKCU, 'Software\Microsoft\Clipboard', 'EnableClipboardHistory', 1);
+
+  // 2. Remove 'V' from DisabledHotkeys in Explorer\Advanced so Win+V works natively
+  if RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced', 'DisabledHotkeys', DisabledHotkeys) then
   begin
-    // 1. Re-enable native Windows 10/11 Clipboard History
-    RegWriteDWordValue(HKCU, 'Software\Microsoft\Clipboard', 'EnableClipboardHistory', 1);
+    StringChangeEx(DisabledHotkeys, 'V', '', True);
+    if Length(DisabledHotkeys) > 0 then
+      RegWriteStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced', 'DisabledHotkeys', DisabledHotkeys)
+    else
+      RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced', 'DisabledHotkeys');
+  end;
 
-    // 2. Remove 'V' from DisabledHotkeys in Explorer\Advanced so Win+V works natively
-    if RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced', 'DisabledHotkeys', DisabledHotkeys) then
-    begin
-      StringChangeEx(DisabledHotkeys, 'V', '', True);
-      if Length(DisabledHotkeys) > 0 then
-        RegWriteStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced', 'DisabledHotkeys', DisabledHotkeys)
-      else
-        RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced', 'DisabledHotkeys');
-    end;
+  // 3. Broadcast WM_SETTINGCHANGE so Windows Explorer reloads hotkeys immediately
+  // HWND_BROADCAST = 65535 ($FFFF), WM_SETTINGCHANGE = 26 ($001A)
+  try
+    PostMessage(65535, 26, 0, 0);
+  except
+    // Ignore if broadcast fails
+  end;
+end;
 
-    // 3. Broadcast WM_SETTINGCHANGE so Windows Explorer reloads hotkeys immediately
-    // HWND_BROADCAST = 65535 ($FFFF), WM_SETTINGCHANGE = 26 ($001A)
-    try
-      PostMessage(65535, 26, 0, 0);
-    except
-      // Ignore if broadcast fails
-    end;
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ResultCode: Integer;
+begin
+  if (CurUninstallStep = usUninstall) or (CurUninstallStep = usPostUninstall) then
+  begin
+    Exec('taskkill.exe', '/f /im {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    RestoreNativeClipboard();
   end;
 end;

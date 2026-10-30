@@ -1,12 +1,10 @@
-## 📋 Release Notes - Mistus Copy Pasta (v1.3.30)
+## 📋 Release Notes - Mistus Copy Pasta (v1.3.31)
 
-### 🛠️ Detailed Menu Rendering & Layout Overlap Fix
-- **Eliminated Overlapping Cards Bug**:
-  - Fixed an issue where dynamically repopulating clipboard entries while updates were suppressed caused Qt layout recalculations to be delayed until the user scrolled.
-  - Replaced update suppression with clean explicit widget disconnection (`setParent(None)` & `hide()`), synchronous layout recalculation (`layout.activate()`), and immediate geometry flushing (`sendPostedEvents`).
-  - Cards now display immediately in their neat, smoothly spaced grid upon opening or refreshing with zero stutter or overlapping.
-
-### 📌 Stable History Positioning on Paste
-- **Fixed Item Reordering on Paste**:
-  - Selecting and pasting an entry from the detailed clipboard window now preserves its original position in the list instead of bumping it to the top.
-  - History is consistently ordered by item creation (`id DESC`), ensuring that your clippings stay exactly where you expect them to be.
+### ⌨️ Native Windows Clipboard (Win + V) Instant Restoration
+- **Zero Registry Tampering**:
+  - Eliminated the registry modification anti-pattern (`DisabledHotkeys = "V"` and `EnableClipboardHistory = 0`). CopyPasta now intercepts `Win + V` strictly in-memory using low-level keyboard hooks (`WH_KEYBOARD_LL`).
+  - Because Windows Explorer's registered hotkeys are never disabled in the registry, native Windows Clipboard (`Win + V`) works immediately without lag, reboots, or explorer restarts the instant CopyPasta exits or is uninstalled.
+- **Automatic Repair of Existing Systems**:
+  - Automatically cleans up any leftover `"V"` in `DisabledHotkeys` and ensures `EnableClipboardHistory = 1` across Windows 10 and 11.
+- **Clean Installer & Uninstaller Lifecycle**:
+  - Enhanced installer and uninstaller to cleanly terminate any running instances prior to install/uninstall, ensuring all keyboard hooks are instantly released and native clipboard functionality is 100% active.

@@ -713,7 +713,7 @@ class DetailedWindow(QWidget):
         self.chk_win_v.setChecked(self.db.get_bool_setting("intercept_win_v", True))
         self.chk_win_v.stateChanged.connect(self._save_settings)
         box_win_v.addWidget(self.chk_win_v)
-        sub_win_v = QLabel("Replaces the default Windows clipboard flyout with Mistus Copy Pasta (automatically disables Windows' native clipboard flyout).")
+        sub_win_v = QLabel("Replaces the default Windows clipboard flyout with Mistus Copy Pasta while running. Restores Windows native clipboard instantly when exited or uninstalled.")
         sub_win_v.setStyleSheet("color: #6ee7b7; font-size: 12px; margin-left: 24px;")
         sub_win_v.setWordWrap(True)
         box_win_v.addWidget(sub_win_v)

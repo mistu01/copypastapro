@@ -169,26 +169,24 @@ def _inspect_point(x: int, y: int):
         return 0, "", "", HTCLIENT
 
 
-def configure_windows_clipboard_override(disable_native: bool = True):
+def configure_windows_clipboard_override(disable_native: bool = False):
     """
-    Configures Windows registry so Windows Explorer does not intercept Win+V
-    and disables native Windows Clipboard History flyout in favor of CopyPasta.
-    When disable_native is False, cleanly restores native Windows Clipboard History.
-    Only touches Current User (HKCU) - requires no admin elevation.
+    Ensures Windows native clipboard history is enabled and cleans up any
+    'DisabledHotkeys' registry overrides left over from earlier versions.
+
+    IMPORTANT: We intentionally DO NOT disable Win+V or native clipboard in the Windows registry!
+    CopyPasta intercepts Win+V strictly in-memory using low-level keyboard hooks (WH_KEYBOARD_LL).
+    Setting DisabledHotkeys in the registry causes Windows Explorer to unregister the Win+V
+    hotkey permanently, breaking native Windows clipboard when CopyPasta is exited or uninstalled.
+    By keeping the Windows registry completely clean and EnableClipboardHistory enabled (1),
+    Windows native clipboard (Win + V) works immediately and reliably the instant CopyPasta
+    exits, crashes, or is uninstalled!
     """
     try:
-        # 1. Disable / Re-enable Win+V in Windows Explorer hotkey list
+        # 1. Clean up 'V' from DisabledHotkeys if present from earlier versions
         with winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced") as key:
             try:
                 cur_disabled, _ = winreg.QueryValueEx(key, "DisabledHotkeys")
-            except FileNotFoundError:
-                cur_disabled = ""
-
-            if disable_native:
-                if "V" not in cur_disabled:
-                    new_val = cur_disabled + "V"
-                    winreg.SetValueEx(key, "DisabledHotkeys", 0, winreg.REG_SZ, new_val)
-            else:
                 if "V" in cur_disabled:
                     new_val = cur_disabled.replace("V", "")
                     if new_val:
@@ -198,18 +196,19 @@ def configure_windows_clipboard_override(disable_native: bool = True):
                             winreg.DeleteValue(key, "DisabledHotkeys")
                         except Exception:
                             winreg.SetValueEx(key, "DisabledHotkeys", 0, winreg.REG_SZ, "")
+            except FileNotFoundError:
+                pass
 
-        # 2. Turn on/off built-in Windows 10/11 Clipboard History
+        # 2. Ensure native Windows 10/11 Clipboard History is enabled
         with winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Clipboard") as key:
-            val = 0 if disable_native else 1
-            winreg.SetValueEx(key, "EnableClipboardHistory", 0, winreg.REG_DWORD, val)
+            winreg.SetValueEx(key, "EnableClipboardHistory", 0, winreg.REG_DWORD, 1)
 
         # 3. Notify Windows Explorer immediately of the setting change
         # HWND_BROADCAST = 0xFFFF, WM_SETTINGCHANGE = 0x001A
         user32.PostMessageW(0xFFFF, 0x001A, 0, 0)
 
     except Exception as e:
-        print(f"[Hotkey] Note: Could not update Windows clipboard registry: {e}")
+        print(f"[Hotkey] Note: Could not restore Windows clipboard registry: {e}")
 
 
 class HotkeyListener(QObject):
@@ -255,9 +254,8 @@ class HotkeyListener(QObject):
         self._last_click_time = 0.0
         self._last_click_pt = (0, 0)
 
-        # Configure Windows registry for Win+V override
-        if self.intercept_win_v:
-            configure_windows_clipboard_override(True)
+        # Ensure Windows native clipboard registry is clean and healthy
+        configure_windows_clipboard_override(False)
 
     def set_selection_mode(self, active: bool):
         """Enable or disable single-key 'C' copy interception mode."""
@@ -274,7 +272,7 @@ class HotkeyListener(QObject):
         self.custom_hotkey_enabled = custom_hotkey_enabled
         self.selection_c_copy_enabled = selection_c_copy_enabled
         self.screenshot_enabled = screenshot_enabled
-        configure_windows_clipboard_override(self.intercept_win_v)
+        configure_windows_clipboard_override(False)
 
     def start(self):
         if self._running:
