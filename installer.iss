@@ -86,8 +86,8 @@ Root: HKLM; Subkey: "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{#MyApp
 ; App Info
 Root: HKCU; Subkey: "Software\{#MyAppName}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\{#MyAppName}"; ValueType: string; ValueName: "Version"; ValueData: "{#MyAppVersion}"; Flags: uninsdeletekey
-; Ensure native Windows Clipboard History is re-enabled on uninstall
-Root: HKCU; Subkey: "Software\Microsoft\Clipboard"; ValueType: dword; ValueName: "EnableClipboardHistory"; ValueData: "1"; Flags: uninssetvalue
+; Ensure native Windows Clipboard History is enabled
+Root: HKCU; Subkey: "Software\Microsoft\Clipboard"; ValueType: dword; ValueName: "EnableClipboardHistory"; ValueData: "1"
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
