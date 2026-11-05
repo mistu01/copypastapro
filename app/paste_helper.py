@@ -129,16 +129,21 @@ class PasteHelper:
             if qimg.isNull():
                 return
 
+            DPI_300 = 11811
+            if qimg.dotsPerMeterX() < DPI_300 or qimg.dotsPerMeterY() < DPI_300:
+                qimg.setDotsPerMeterX(DPI_300)
+                qimg.setDotsPerMeterY(DPI_300)
+
             mime_data = QMimeData()
 
-            # 1. Native Image (CF_DIB, CF_DIBV5)
+            # 1. Native Image (CF_DIB, CF_DIBV5) with 300 DPI
             mime_data.setImageData(qimg)
 
-            # 2. image/png raw payload for modern Web/Electron/Chat apps
+            # 2. image/png raw payload for modern apps with 300 DPI at 100% quality
             ba = QByteArray()
             buf = QBuffer(ba)
             buf.open(QIODevice.WriteOnly)
-            qimg.save(buf, "PNG")
+            qimg.save(buf, "PNG", 100)
             buf.close()
             mime_data.setData("image/png", ba)
 

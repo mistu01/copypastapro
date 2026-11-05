@@ -82,7 +82,7 @@ class CopyPastaApp:
         self.detailed_window = DetailedWindow(self.db, self.paste_helper)
         self.floating_bar = FloatingBar(self.db, self.paste_helper)
         self.selection_badge = SelectionCopyBadge()
-        self.screenshot_overlay = ScreenshotOverlay()
+        self.screenshot_overlay = ScreenshotOverlay(db=self.db)
 
         # Hotkey listener (Win+V, Ctrl+Shift+V, 'C' selection copy, and PrintScreen screenshot)
         self.hotkey_listener = HotkeyListener(

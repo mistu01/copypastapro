@@ -42,18 +42,25 @@ def save_image_from_qimage(qimg: QImage, source_path: Optional[str] = None) -> O
     """
     Save a QImage from clipboard or screen capture to the local media directory.
     Generates a unique content hash and a fast-rendering thumbnail.
+    Ensures high image quality (300 DPI metadata and maximum compression quality).
     """
     if qimg.isNull() or qimg.width() <= 0 or qimg.height() <= 0:
         return None
 
+    # Guarantee at least 300 DPI density (11811 dots per meter) on all saved clippings
+    DPI_300 = 11811
+    if qimg.dotsPerMeterX() < DPI_300 or qimg.dotsPerMeterY() < DPI_300:
+        qimg.setDotsPerMeterX(DPI_300)
+        qimg.setDotsPerMeterY(DPI_300)
+
     media_dir = get_media_dir()
     os.makedirs(media_dir, exist_ok=True)
 
-    # Encode to PNG bytes in memory for deterministic hashing
+    # Encode to PNG bytes in memory for deterministic hashing at 100% quality
     ba = QByteArray()
     buf = QBuffer(ba)
     buf.open(QIODevice.WriteOnly)
-    qimg.save(buf, "PNG")
+    qimg.save(buf, "PNG", 100)
     buf.close()
 
     raw_bytes = bytes(ba)
@@ -80,7 +87,7 @@ def save_image_from_qimage(qimg: QImage, source_path: Optional[str] = None) -> O
     if not os.path.isfile(thumb_path):
         try:
             thumb = qimg.scaled(260, 130, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            thumb.save(thumb_path, "PNG")
+            thumb.save(thumb_path, "PNG", 100)
         except Exception:
             thumb_path = image_path
 

@@ -133,6 +133,7 @@ class Database:
             "floating_bar_entry_count": "5",
             "max_pinned_slots": "20",
             "max_history_count": "500",
+            "screenshot_dpi_mode": "300_ultra",
             "theme": "dark"
         }
         with self._get_connection() as conn:

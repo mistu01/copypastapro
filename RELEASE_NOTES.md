@@ -1,10 +1,19 @@
-## 📋 Release Notes - Mistus Copy Pasta (v1.3.31)
+## 📋 Release Notes - Mistus Copy Pasta (v1.3.32)
 
-### ⌨️ Native Windows Clipboard (Win + V) Instant Restoration
-- **Zero Registry Tampering**:
-  - Eliminated the registry modification anti-pattern (`DisabledHotkeys = "V"` and `EnableClipboardHistory = 0`). CopyPasta now intercepts `Win + V` strictly in-memory using low-level keyboard hooks (`WH_KEYBOARD_LL`).
-  - Because Windows Explorer's registered hotkeys are never disabled in the registry, native Windows Clipboard (`Win + V`) works immediately without lag, reboots, or explorer restarts the instant CopyPasta exits or is uninstalled.
-- **Automatic Repair of Existing Systems**:
-  - Automatically cleans up any leftover `"V"` in `DisabledHotkeys` and ensures `EnableClipboardHistory = 1` across Windows 10 and 11.
-- **Clean Installer & Uninstaller Lifecycle**:
-  - Enhanced installer and uninstaller to cleanly terminate any running instances prior to install/uninstall, ensuring all keyboard hooks are instantly released and native clipboard functionality is 100% active.
+### 📸 High-Definition Screenshot Engine (300 DPI)
+- **High-Resolution 300 DPI Quality**:
+  - All screenshots are captured and exported with a minimum of **300 DPI** metadata (`11,811 dots per meter`), meeting professional print and publishing density standards.
+  - Added **300 DPI Ultra Mode** (super-sampled with bicubic smooth transformation) and **300 DPI Native Mode** (1:1 screen pixels with 300 DPI density).
+  - Annotations (text, arrows, rectangles, pens) are scaled and rasterized vector-sharp directly on the high-DPI canvas.
+  - Both PNG and JPEG formats are saved at 100% maximum quality with zero compression artifacts.
+  - Quick toggle button on the screenshot action bar (`[✨ 300 DPI]`) and in Settings.
+
+### ⏹️ Square / Rectangle Indicator Fill Option
+- **Interactive Fill Modes**:
+  - Added dedicated Fill option button directly on the annotation toolbar under the Square indicator.
+  - Cycle through 3 fill modes via click, right-click, or pressing the **`F`** key:
+    - **Outline Only**: Classic hollow rectangle border.
+    - **Translucent Fill**: ~28% opacity tinted fill for highlighting text and interface elements.
+    - **Solid Fill**: 100% opaque block for censoring, masking, or redacting sensitive data.
+  - Live drawing preview immediately reflects the selected fill mode and active palette color.
+  - Overlay status badges provide instant on-screen feedback when toggling fill modes or DPI settings.

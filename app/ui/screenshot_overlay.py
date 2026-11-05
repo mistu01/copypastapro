@@ -14,10 +14,10 @@ import math
 import time
 from typing import List, Optional, Tuple, Dict, Any
 
-from PySide6.QtCore import Qt, QRect, QPoint, QPointF, QSize, Signal
+from PySide6.QtCore import Qt, QRect, QPoint, QPointF, QSize, Signal, QTimer, QByteArray, QBuffer, QIODevice, QMimeData
 from PySide6.QtGui import (
     QPainter, QColor, QPen, QBrush, QFont, QPolygonF, QPainterPath,
-    QPixmap, QImage, QCursor, QGuiApplication
+    QPixmap, QImage, QCursor, QGuiApplication, QClipboard
 )
 from PySide6.QtWidgets import (
     QWidget, QApplication, QFileDialog, QLineEdit, QFrame,
@@ -133,16 +133,25 @@ class ArrowAnnotation(BaseAnnotation):
 
 
 class RectAnnotation(BaseAnnotation):
-    def __init__(self, rect: QRect, color: QColor, width: int = 3):
+    def __init__(self, rect: QRect, color: QColor, width: int = 3, fill_mode: str = "none"):
         self.rect = rect
         self.color = color
         self.width = width
+        self.fill_mode = fill_mode  # "none", "semi", "solid"
 
     def draw(self, painter: QPainter):
         painter.setRenderHint(QPainter.Antialiasing, True)
         pen = QPen(self.color, self.width, Qt.SolidLine, Qt.SquareCap, Qt.MiterJoin)
         painter.setPen(pen)
-        painter.setBrush(Qt.NoBrush)
+        if self.fill_mode == "semi":
+            # Translucent tint: ~28% alpha highlight fill
+            tint = QColor(self.color.red(), self.color.green(), self.color.blue(), 72)
+            painter.setBrush(QBrush(tint))
+        elif self.fill_mode == "solid":
+            # Solid opaque fill: 100% opacity for masking / redaction
+            painter.setBrush(QBrush(self.color))
+        else:
+            painter.setBrush(Qt.NoBrush)
         painter.drawRect(self.rect)
 
 
@@ -167,6 +176,7 @@ class ScreenshotOverlay(QWidget):
     closed = Signal()
 
     HANDLE_SIZE = 8
+    DPI_300 = 11811  # 300 DPI in dots per meter: round(300 / 0.0254)
     PALETTE_COLORS = [
         ("#ef4444", "Red"),
         ("#10b981", "Emerald"),
@@ -176,8 +186,13 @@ class ScreenshotOverlay(QWidget):
         ("#ffffff", "White"),
     ]
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, db=None):
         super().__init__(parent)
+        self.db = db
+        self.dpi_mode = self.db.get_setting("screenshot_dpi_mode", "300_ultra") if self.db else "300_ultra"
+        self.rect_fill_mode: str = "none"  # "none", "semi", "solid"
+        self._overlay_toast_text: str = ""
+        self._overlay_toast_time: float = 0.0
         self.setWindowFlags(
             Qt.FramelessWindowHint |
             Qt.WindowStaysOnTopHint |
@@ -256,6 +271,19 @@ class ScreenshotOverlay(QWidget):
                 background-color: rgba(244, 63, 94, 0.4);
                 color: #f43f5e;
             }
+            QPushButton#DpiBtn {
+                background-color: rgba(56, 189, 248, 0.14);
+                border: 1px solid rgba(56, 189, 248, 0.45);
+                color: #38bdf8;
+                font-size: 10px;
+                padding: 3px 6px;
+                border-radius: 4px;
+            }
+            QPushButton#DpiBtn:hover {
+                background-color: rgba(56, 189, 248, 0.3);
+                border-color: #38bdf8;
+                color: #ffffff;
+            }
         """)
         act_layout = QHBoxLayout(self.action_bar)
         act_layout.setContentsMargins(4, 2, 4, 2)
@@ -287,6 +315,15 @@ class ScreenshotOverlay(QWidget):
         self.cancel_btn.clicked.connect(self.close_overlay)
         act_layout.addWidget(self.cancel_btn)
 
+        # 300 DPI Resolution Indicator / Toggle
+        self.dpi_btn = QPushButton(" 300 DPI")
+        self.dpi_btn.setObjectName("DpiBtn")
+        self.dpi_btn.setIcon(AppIcons.sparkles(13, "#38bdf8"))
+        self.dpi_btn.setToolTip("Screenshot Quality: 300 DPI Ultra (Click to toggle 300 DPI Ultra / 300 DPI Native 1:1)")
+        self.dpi_btn.setCursor(Qt.PointingHandCursor)
+        self.dpi_btn.clicked.connect(self._toggle_dpi_mode)
+        act_layout.addWidget(self.dpi_btn)
+
         self.action_bar.hide()
 
         # Annotation Toolbar (Right / Vertical)
@@ -314,6 +351,23 @@ class ScreenshotOverlay(QWidget):
                 background-color: rgba(0, 245, 155, 0.25);
                 border: 1px solid #00f59b;
             }
+            QPushButton#RectFillBtn {
+                border: 1px dashed rgba(56, 189, 248, 0.45);
+                background-color: rgba(15, 23, 42, 0.7);
+                border-radius: 4px;
+                min-width: 22px;
+                min-height: 22px;
+                padding: 2px;
+                margin-top: -2px;
+            }
+            QPushButton#RectFillBtn:hover {
+                background-color: rgba(56, 189, 248, 0.25);
+                border-color: #38bdf8;
+            }
+            QPushButton#RectFillBtn[active="true"] {
+                border: 1px solid #00f59b;
+                background-color: rgba(0, 245, 155, 0.25);
+            }
         """)
         draw_layout = QVBoxLayout(self.draw_bar)
         draw_layout.setContentsMargins(3, 4, 3, 4)
@@ -325,7 +379,7 @@ class ScreenshotOverlay(QWidget):
             ("pen", "Pen (Freehand)", AppIcons.pen(16, "#f0fdf4")),
             ("line", "Line", AppIcons.get("minus", 16, "#f0fdf4")),
             ("arrow", "Arrow", AppIcons.arrow(16, "#f0fdf4")),
-            ("rect", "Rectangle", AppIcons.square(16, "#f0fdf4")),
+            ("rect", "Square / Rectangle Indicator (Click or Right-Click for Fill)", AppIcons.square(16, "#f0fdf4")),
             ("marker", "Highlighter", AppIcons.highlighter(16, "#f0fdf4")),
             ("text", "Text", AppIcons.type(16, "#f0fdf4")),
         ]
@@ -339,6 +393,15 @@ class ScreenshotOverlay(QWidget):
             btn.clicked.connect(lambda _, t=tool_name: self._toggle_tool(t))
             draw_layout.addWidget(btn)
             self.tool_buttons[tool_name] = btn
+
+            # Dedicated Fill option for the Square indicator
+            if tool_name == "rect":
+                self.rect_fill_btn = QPushButton()
+                self.rect_fill_btn.setObjectName("RectFillBtn")
+                self.rect_fill_btn.setCursor(Qt.PointingHandCursor)
+                self.rect_fill_btn.clicked.connect(self._cycle_rect_fill_mode)
+                draw_layout.addWidget(self.rect_fill_btn)
+                self._update_fill_button_icon()
 
         # Color palette button
         self.color_btn = QPushButton()
@@ -368,6 +431,74 @@ class ScreenshotOverlay(QWidget):
         p.drawEllipse(2, 2, 14, 14)
         p.end()
         self.color_btn.setIcon(pix)
+        self._update_fill_button_icon()
+
+    def _update_fill_button_icon(self):
+        pix = QPixmap(18, 18)
+        pix.fill(Qt.transparent)
+        p = QPainter(pix)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        pen = QPen(self.active_color, 1.8)
+        p.setPen(pen)
+        if self.rect_fill_mode == "solid":
+            p.setBrush(QBrush(self.active_color))
+            tip = "Square Fill: Solid Opaque (Mask / Redact) — Click or press F to toggle"
+        elif self.rect_fill_mode == "semi":
+            tint = QColor(self.active_color.red(), self.active_color.green(), self.active_color.blue(), 90)
+            p.setBrush(QBrush(tint))
+            tip = "Square Fill: Translucent Tint (Highlight) — Click or press F to toggle"
+        else:
+            p.setBrush(Qt.NoBrush)
+            tip = "Square Fill: Outline only (No fill) — Click or press F to toggle"
+        p.drawRoundedRect(2, 2, 14, 14, 2, 2)
+        p.end()
+        if hasattr(self, "rect_fill_btn"):
+            self.rect_fill_btn.setIcon(pix)
+            self.rect_fill_btn.setToolTip(tip)
+
+    def _cycle_rect_fill_mode(self):
+        modes = ["none", "semi", "solid"]
+        try:
+            idx = modes.index(self.rect_fill_mode)
+            self.rect_fill_mode = modes[(idx + 1) % len(modes)]
+        except ValueError:
+            self.rect_fill_mode = "semi"
+
+        # Auto-activate rectangle tool if another tool was active
+        if self.active_tool != "rect":
+            self._toggle_tool("rect")
+
+        self._update_fill_button_icon()
+
+        labels = {
+            "none": "Square Fill: Outline only",
+            "semi": "Square Fill: Translucent (Highlight Tint)",
+            "solid": "Square Fill: Solid Opaque (Mask / Redact)"
+        }
+        self._show_overlay_toast(labels.get(self.rect_fill_mode, "Square Fill Changed"))
+        self.update()
+
+    def _toggle_dpi_mode(self):
+        if self.dpi_mode == "300_ultra":
+            self.dpi_mode = "300_native"
+            self.dpi_btn.setText(" 300 DPI (1:1)")
+            self.dpi_btn.setToolTip("Screenshot Quality: 300 DPI Native (1:1 Screen Pixels + 300 DPI Metadata)\nClick to switch to 300 DPI Ultra")
+            self._show_overlay_toast("Screenshot Quality: 300 DPI Native (1:1 Pixels)")
+        else:
+            self.dpi_mode = "300_ultra"
+            self.dpi_btn.setText(" 300 DPI")
+            self.dpi_btn.setToolTip("Screenshot Quality: 300 DPI Ultra (Super-Sampled Print Quality)\nClick to switch to 300 DPI Native")
+            self._show_overlay_toast("Screenshot Quality: 300 DPI Ultra (Super-Sampled)")
+
+        if self.db:
+            self.db.set_setting("screenshot_dpi_mode", self.dpi_mode)
+        self.update()
+
+    def _show_overlay_toast(self, text: str):
+        self._overlay_toast_text = text
+        self._overlay_toast_time = time.time()
+        self.update()
+        QTimer.singleShot(2100, self.update)
 
     def _cycle_color(self):
         hex_list = [c[0] for c in self.PALETTE_COLORS]
@@ -390,11 +521,26 @@ class ScreenshotOverlay(QWidget):
             for name, btn in self.tool_buttons.items():
                 btn.setChecked(name == tool_name)
 
+        if hasattr(self, "rect_fill_btn"):
+            is_rect = (self.active_tool == "rect")
+            self.rect_fill_btn.setProperty("active", is_rect)
+            self.rect_fill_btn.style().unpolish(self.rect_fill_btn)
+            self.rect_fill_btn.style().polish(self.rect_fill_btn)
+
     def capture_screen(self):
         """Grabs full desktop across all displays and shows the interactive overlay."""
         screens = QGuiApplication.screens()
         if not screens:
             return
+
+        # Refresh DPI mode setting
+        if self.db:
+            self.dpi_mode = self.db.get_setting("screenshot_dpi_mode", "300_ultra")
+            if hasattr(self, "dpi_btn"):
+                if self.dpi_mode == "300_native":
+                    self.dpi_btn.setText(" 300 DPI (1:1)")
+                else:
+                    self.dpi_btn.setText(" 300 DPI")
 
         # Calculate bounding rectangle of all screens
         self.virtual_rect = QRect()
@@ -406,6 +552,8 @@ class ScreenshotOverlay(QWidget):
         self.desktop_pixmap.fill(Qt.black)
 
         painter = QPainter(self.desktop_pixmap)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
         for s in screens:
             geo = s.geometry()
             screen_shot = s.grabWindow(0)
@@ -473,9 +621,35 @@ class ScreenshotOverlay(QWidget):
             # Render dimensions badge
             self._draw_dimension_badge(painter, sel)
 
+            # Render status toast if active
+            self._draw_status_toast(painter, sel)
+
         else:
             # Full screen dimmed mask when no selection exists yet
             painter.fillRect(0, 0, self.width(), self.height(), mask_color)
+
+    def _draw_status_toast(self, painter: QPainter, sel: QRect):
+        if not self._overlay_toast_text or (time.time() - self._overlay_toast_time > 2.0):
+            return
+
+        painter.setFont(QFont("Segoe UI", 9, QFont.Bold))
+        fm = painter.fontMetrics()
+        tw = fm.horizontalAdvance(self._overlay_toast_text) + 24
+        th = 24
+        tx = sel.center().x() - tw // 2
+        ty = sel.top() + 10
+        if ty + th > sel.bottom() - 10:
+            ty = sel.top() - th - 8
+        if ty < 4:
+            ty = 4
+
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setBrush(QBrush(QColor(9, 14, 11, 235)))
+        painter.setPen(QPen(QColor("#00f59b"), 1.2))
+        painter.drawRoundedRect(tx, ty, tw, th, 4, 4)
+
+        painter.setPen(QColor("#ffffff"))
+        painter.drawText(QRect(tx, ty, tw, th), Qt.AlignCenter, self._overlay_toast_text)
 
     def _draw_current_annotation(self, painter: QPainter):
         if not self.current_points:
@@ -497,7 +671,7 @@ class ScreenshotOverlay(QWidget):
             arrow_ann.draw(painter)
         elif self.active_tool == "rect":
             r = QRect(p1, p2).normalized()
-            rect_ann = RectAnnotation(r, self.active_color)
+            rect_ann = RectAnnotation(r, self.active_color, fill_mode=self.rect_fill_mode)
             rect_ann.draw(painter)
 
     def _draw_dimension_badge(self, painter: QPainter, sel: QRect):
@@ -677,7 +851,9 @@ class ScreenshotOverlay(QWidget):
                 elif self.active_tool == "arrow":
                     self.annotations.append(ArrowAnnotation(p1, p2, self.active_color))
                 elif self.active_tool == "rect":
-                    self.annotations.append(RectAnnotation(QRect(p1, p2).normalized(), self.active_color))
+                    self.annotations.append(
+                        RectAnnotation(QRect(p1, p2).normalized(), self.active_color, fill_mode=self.rect_fill_mode)
+                    )
                 self.current_points = []
             self.update()
             return
@@ -794,48 +970,115 @@ class ScreenshotOverlay(QWidget):
             self.annotations.pop()
             self.update()
 
-    # Final composite pixmap generator
-    def render_result_pixmap(self) -> Optional[QPixmap]:
+    # Final high-resolution 300 DPI composite image & pixmap generator
+    def render_result_image(self) -> Optional[QImage]:
         if not self.desktop_pixmap or not self.selection_rect.isValid() or self.selection_rect.isEmpty():
             return None
 
         sel = self.selection_rect.normalized()
-        # Crop desktop
         cropped = self.desktop_pixmap.copy(sel)
+        base_img = cropped.toImage().convertToFormat(QImage.Format_ARGB32_Premultiplied)
 
-        # Draw annotations with relative coordinates onto the cropped pixmap
-        painter = QPainter(cropped)
+        # High-Quality 300 DPI Rendering
+        screen = QGuiApplication.primaryScreen()
+        screen_dpi = screen.logicalDotsPerInch() if screen else 96.0
+        if screen_dpi <= 0:
+            screen_dpi = 96.0
+
+        if self.dpi_mode == "300_native":
+            scale = 1.0
+        else:
+            scale = max(1.0, 300.0 / screen_dpi)
+
+        target_w = max(1, int(round(sel.width() * scale)))
+        target_h = max(1, int(round(sel.height() * scale)))
+
+        if abs(scale - 1.0) > 0.01:
+            scaled_base = base_img.scaled(
+                target_w, target_h,
+                Qt.IgnoreAspectRatio,
+                Qt.SmoothTransformation
+            )
+        else:
+            scaled_base = base_img
+
+        out_img = QImage(target_w, target_h, QImage.Format_ARGB32_Premultiplied)
+        out_img.setDotsPerMeterX(self.DPI_300)
+        out_img.setDotsPerMeterY(self.DPI_300)
+
+        painter = QPainter(out_img)
         painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setRenderHint(QPainter.TextAntialiasing, True)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+
+        painter.drawImage(0, 0, scaled_base)
+
+        if abs(scale - 1.0) > 0.01:
+            painter.scale(scale, scale)
+
         painter.translate(-sel.x(), -sel.y())
 
         for ann in self.annotations:
             ann.draw(painter)
+
         painter.end()
 
-        return cropped
+        # Guarantee at least 300 DPI metadata is retained
+        out_img.setDotsPerMeterX(self.DPI_300)
+        out_img.setDotsPerMeterY(self.DPI_300)
+        return out_img
+
+    def render_result_pixmap(self) -> Optional[QPixmap]:
+        img = self.render_result_image()
+        if img is None:
+            return None
+        return QPixmap.fromImage(img)
 
     def copy_screenshot(self):
-        pixmap = self.render_result_pixmap()
-        if pixmap:
-            QApplication.clipboard().setPixmap(pixmap)
-            self.screenshot_captured.emit(pixmap)
+        qimg = self.render_result_image()
+        if qimg and not qimg.isNull():
+            qimg.setDotsPerMeterX(self.DPI_300)
+            qimg.setDotsPerMeterY(self.DPI_300)
+
+            clipboard = QApplication.clipboard()
+            mime_data = QMimeData()
+            mime_data.setImageData(qimg)
+
+            # Raw image/png payload for modern apps at 300 DPI with maximum compression quality
+            ba = QByteArray()
+            buf = QBuffer(ba)
+            buf.open(QIODevice.WriteOnly)
+            qimg.save(buf, "PNG", 100)
+            buf.close()
+            mime_data.setData("image/png", ba)
+
+            clipboard.setMimeData(mime_data, QClipboard.Clipboard)
+
+            pix = QPixmap.fromImage(qimg)
+            self.screenshot_captured.emit(pix)
         self.close_overlay()
 
     def save_screenshot(self):
-        pixmap = self.render_result_pixmap()
-        if not pixmap:
+        qimg = self.render_result_image()
+        if not qimg or qimg.isNull():
             return
 
         default_name = f"Screenshot_{time.strftime('%Y%m%d_%H%M%S')}.png"
         default_path = os.path.join(get_default_screenshot_dir(), default_name)
         filepath, _ = QFileDialog.getSaveFileName(
             self,
-            "Save Screenshot",
+            "Save Screenshot (300 DPI Quality)",
             default_path,
             "PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;All Files (*.*)"
         )
         if filepath:
-            pixmap.save(filepath)
+            qimg.setDotsPerMeterX(self.DPI_300)
+            qimg.setDotsPerMeterY(self.DPI_300)
+            ext = os.path.splitext(filepath)[1].lower()
+            if ext in ('.jpg', '.jpeg'):
+                qimg.save(filepath, "JPEG", 100)
+            else:
+                qimg.save(filepath, "PNG", 100)
             self.screenshot_saved.emit(filepath)
             self.close_overlay()
 
@@ -857,5 +1100,9 @@ class ScreenshotOverlay(QWidget):
             self.save_screenshot()
         elif key == Qt.Key_Z and (modifiers & Qt.ControlModifier):
             self.undo_annotation()
+        elif key == Qt.Key_F:
+            self._cycle_rect_fill_mode()
+        elif key == Qt.Key_D:
+            self._toggle_dpi_mode()
         else:
             super().keyPressEvent(event)
