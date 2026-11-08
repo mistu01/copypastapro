@@ -133,7 +133,8 @@ class Database:
             "floating_bar_entry_count": "5",
             "max_pinned_slots": "20",
             "max_history_count": "500",
-            "screenshot_dpi_mode": "300_ultra",
+            "screenshot_quality": "standard",
+            "screenshot_dpi_mode": "standard",
             "theme": "dark"
         }
         with self._get_connection() as conn:
@@ -153,6 +154,18 @@ class Database:
     def get_bool_setting(self, key: str, default: bool = False) -> bool:
         val = self.get_setting(key, str(default).lower()).lower()
         return val in ("true", "1", "yes")
+
+    def get_screenshot_quality(self) -> str:
+        """Return the user's preferred screenshot output quality: standard, high, or ultra."""
+        val = self.get_setting("screenshot_quality", "").lower()
+        if val in ("standard", "high", "ultra"):
+            return val
+        old_dpi = self.get_setting("screenshot_dpi_mode", "").lower()
+        if old_dpi == "300_native":
+            return "high"
+        elif old_dpi == "300_ultra":
+            return "ultra"
+        return "standard"
 
     def set_setting(self, key: str, value: Any):
         with self._get_connection() as conn:

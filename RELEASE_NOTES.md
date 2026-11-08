@@ -1,19 +1,25 @@
-## 📋 Release Notes - Mistus Copy Pasta (v1.3.32)
+## 📋 Release Notes - Mistus Copy Pasta (v1.3.33)
 
-### 📸 High-Definition Screenshot Engine (300 DPI)
-- **High-Resolution 300 DPI Quality**:
-  - All screenshots are captured and exported with a minimum of **300 DPI** metadata (`11,811 dots per meter`), meeting professional print and publishing density standards.
-  - Added **300 DPI Ultra Mode** (super-sampled with bicubic smooth transformation) and **300 DPI Native Mode** (1:1 screen pixels with 300 DPI density).
-  - Annotations (text, arrows, rectangles, pens) are scaled and rasterized vector-sharp directly on the high-DPI canvas.
-  - Both PNG and JPEG formats are saved at 100% maximum quality with zero compression artifacts.
-  - Quick toggle button on the screenshot action bar (`[✨ 300 DPI]`) and in Settings.
+### 📸 Optimized Screenshot Quality & Lightweight Output (Default Restored)
+- **Restored Standard Original Quality by Default**:
+  - Screenshot capture defaults to **Standard Quality** (1:1 native screen resolution with native display DPI and lightweight file compression).
+  - Screenshots are now compact (~100 KB – 400 KB PNG) and can be shared instantly across Discord, Slack, email, web browsers, and chat without hitting file size limits.
+- **Optimized High Quality (300 DPI Compact Mode)**:
+  - Preserves exact 1:1 pixel dimensions while embedding standard 300 DPI density metadata (`11,811 dots per meter`).
+  - Delivers true 300 DPI density for print, PDFs, and publishing without the massive file size explosion caused by previous supersampling.
+- **Controlled Ultra HD Mode (1.5x Supersampling)**:
+  - For 4K monitors and high-resolution presentation graphics, provides an optimized 1.5x supersampling factor with bicubic filtering while keeping file sizes lightweight (~1–2 MB).
 
-### ⏹️ Square / Rectangle Indicator Fill Option
-- **Interactive Fill Modes**:
-  - Added dedicated Fill option button directly on the annotation toolbar under the Square indicator.
-  - Cycle through 3 fill modes via click, right-click, or pressing the **`F`** key:
-    - **Outline Only**: Classic hollow rectangle border.
-    - **Translucent Fill**: ~28% opacity tinted fill for highlighting text and interface elements.
-    - **Solid Fill**: 100% opaque block for censoring, masking, or redacting sensitive data.
-  - Live drawing preview immediately reflects the selected fill mode and active palette color.
-  - Overlay status badges provide instant on-screen feedback when toggling fill modes or DPI settings.
+### 🎛️ User-Friendly Quality Controls in Screenshot Frame & Settings
+- **Action Bar Quick-Selector Button**:
+  - Added a dedicated Quality indicator button directly on the screenshot action bar:
+    - `⚡ Standard` (Emerald green): Fast sharing, compact file size *(Default)*.
+    - `💎 High (300 DPI)` (Sky blue): 1:1 screen resolution with embedded 300 DPI print metadata.
+    - `🚀 Ultra HD` (Amber): 1.5x supersampled graphics for high-resolution displays.
+  - **Single Click**: Seamlessly cycles between Standard, High, and Ultra HD.
+  - **Right-Click Context Menu**: Choose directly from a sleek Fluent popup menu with radio checks.
+  - **Keyboard Shortcuts**: Press **`Q`** or **`D`** while taking a screenshot to immediately toggle quality modes.
+  - **On-Screen Toast Badge**: Shows visual confirmation of the active mode and resolution description.
+- **Detailed Settings Control**:
+  - Added a new `Screenshot Quality` dropdown under Settings > Screen Capture with clear descriptions for all three modes.
+  - Preferences persist across app restarts and automatically synchronize with the screenshot overlay.

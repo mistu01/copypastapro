@@ -765,25 +765,27 @@ class DetailedWindow(QWidget):
         sub_shot.setWordWrap(True)
         box_shot.addWidget(sub_shot)
 
-        # Screenshot Resolution & DPI Quality Setting
-        row_shot_dpi = QHBoxLayout()
-        row_shot_dpi.setContentsMargins(24, 6, 0, 4)
-        row_shot_dpi.setSpacing(10)
-        lbl_shot_dpi = QLabel("Screenshot Quality & DPI:")
-        lbl_shot_dpi.setStyleSheet("color: #e2e8f0; font-size: 12px; font-weight: 500;")
-        self.combo_shot_dpi = QComboBox()
-        self.combo_shot_dpi.setProperty("class", "SettingsCombo")
-        self.combo_shot_dpi.addItems([
-            "300 DPI Ultra (Super-Sampled Print & Publishing Quality)",
-            "300 DPI Native (1:1 Screen Pixels + 300 DPI Density)"
+        # Screenshot Resolution & Output Quality Setting
+        row_shot_quality = QHBoxLayout()
+        row_shot_quality.setContentsMargins(24, 6, 0, 4)
+        row_shot_quality.setSpacing(10)
+        lbl_shot_quality = QLabel("Screenshot Quality:")
+        lbl_shot_quality.setStyleSheet("color: #e2e8f0; font-size: 12px; font-weight: 500;")
+        self.combo_shot_quality = QComboBox()
+        self.combo_shot_quality.setProperty("class", "SettingsCombo")
+        self.combo_shot_quality.addItems([
+            "Standard (1:1 Native Screen, Small File Size) [Default]",
+            "High (1:1 Screen + 300 DPI Print Density, Compact)",
+            "Ultra HD (1.5x Supersampled + 300 DPI, Large Displays)"
         ])
-        dpi_setting = self.db.get_setting("screenshot_dpi_mode", "300_ultra")
-        self.combo_shot_dpi.setCurrentIndex(1 if dpi_setting == "300_native" else 0)
-        self.combo_shot_dpi.currentIndexChanged.connect(self._save_settings)
-        row_shot_dpi.addWidget(lbl_shot_dpi)
-        row_shot_dpi.addWidget(self.combo_shot_dpi)
-        row_shot_dpi.addStretch()
-        box_shot.addLayout(row_shot_dpi)
+        quality_setting = self.db.get_screenshot_quality()
+        idx_map = {"standard": 0, "high": 1, "ultra": 2}
+        self.combo_shot_quality.setCurrentIndex(idx_map.get(quality_setting, 0))
+        self.combo_shot_quality.currentIndexChanged.connect(self._save_settings)
+        row_shot_quality.addWidget(lbl_shot_quality)
+        row_shot_quality.addWidget(self.combo_shot_quality)
+        row_shot_quality.addStretch()
+        box_shot.addLayout(row_shot_quality)
         layout.addLayout(box_shot)
 
         sec2 = QLabel("DESKTOP FLOATING BAR")
@@ -949,9 +951,12 @@ class DetailedWindow(QWidget):
         self.db.set_setting("custom_hotkey_enabled", str(self.chk_custom_hotkey.isChecked()).lower())
         if hasattr(self, "chk_screenshot"):
             self.db.set_setting("screenshot_enabled", str(self.chk_screenshot.isChecked()).lower())
-        if hasattr(self, "combo_shot_dpi"):
-            dpi_mode = "300_native" if self.combo_shot_dpi.currentIndex() == 1 else "300_ultra"
-            self.db.set_setting("screenshot_dpi_mode", dpi_mode)
+        if hasattr(self, "combo_shot_quality"):
+            idx = self.combo_shot_quality.currentIndex()
+            mode = "ultra" if idx == 2 else ("high" if idx == 1 else "standard")
+            self.db.set_setting("screenshot_quality", mode)
+            legacy_val = "300_ultra" if mode == "ultra" else ("300_native" if mode == "high" else "standard")
+            self.db.set_setting("screenshot_dpi_mode", legacy_val)
         self.db.set_setting("floating_bar_enabled", str(self.chk_floating_bar.isChecked()).lower())
         self.db.set_setting("floating_bar_opacity", str(self.opacity_slider.value() / 100.0))
         if hasattr(self, "combo_bar_entries"):
@@ -1842,11 +1847,12 @@ class DetailedWindow(QWidget):
             self.combo_pinned_entries.blockSignals(True)
             self.combo_pinned_entries.setCurrentText(str(self._get_max_pinned_slots()))
             self.combo_pinned_entries.blockSignals(False)
-        if hasattr(self, "combo_shot_dpi"):
-            self.combo_shot_dpi.blockSignals(True)
-            dpi_val = self.db.get_setting("screenshot_dpi_mode", "300_ultra")
-            self.combo_shot_dpi.setCurrentIndex(1 if dpi_val == "300_native" else 0)
-            self.combo_shot_dpi.blockSignals(False)
+        if hasattr(self, "combo_shot_quality"):
+            self.combo_shot_quality.blockSignals(True)
+            q_val = self.db.get_screenshot_quality()
+            idx_map = {"standard": 0, "high": 1, "ultra": 2}
+            self.combo_shot_quality.setCurrentIndex(idx_map.get(q_val, 0))
+            self.combo_shot_quality.blockSignals(False)
 
         # Screen clamping
         screen = QApplication.primaryScreen().availableGeometry()

@@ -21,7 +21,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QWidget, QApplication, QFileDialog, QLineEdit, QFrame,
-    QHBoxLayout, QVBoxLayout, QPushButton, QLabel
+    QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QMenu
 )
 
 
@@ -189,7 +189,8 @@ class ScreenshotOverlay(QWidget):
     def __init__(self, parent=None, db=None):
         super().__init__(parent)
         self.db = db
-        self.dpi_mode = self.db.get_setting("screenshot_dpi_mode", "300_ultra") if self.db else "300_ultra"
+        self.quality_mode = self.db.get_screenshot_quality() if self.db else "standard"
+        self.dpi_mode = self.quality_mode  # backwards compatibility alias
         self.rect_fill_mode: str = "none"  # "none", "semi", "solid"
         self._overlay_toast_text: str = ""
         self._overlay_toast_time: float = 0.0
@@ -271,17 +272,18 @@ class ScreenshotOverlay(QWidget):
                 background-color: rgba(244, 63, 94, 0.4);
                 color: #f43f5e;
             }
-            QPushButton#DpiBtn {
-                background-color: rgba(56, 189, 248, 0.14);
-                border: 1px solid rgba(56, 189, 248, 0.45);
-                color: #38bdf8;
-                font-size: 10px;
-                padding: 3px 6px;
+            QPushButton#QualityBtn {
+                background-color: rgba(16, 185, 129, 0.16);
+                border: 1px solid rgba(16, 185, 129, 0.45);
+                color: #10b981;
+                font-size: 11px;
+                padding: 3px 8px;
                 border-radius: 4px;
+                font-weight: 600;
             }
-            QPushButton#DpiBtn:hover {
-                background-color: rgba(56, 189, 248, 0.3);
-                border-color: #38bdf8;
+            QPushButton#QualityBtn:hover {
+                background-color: rgba(16, 185, 129, 0.32);
+                border-color: #10b981;
                 color: #ffffff;
             }
         """)
@@ -315,14 +317,15 @@ class ScreenshotOverlay(QWidget):
         self.cancel_btn.clicked.connect(self.close_overlay)
         act_layout.addWidget(self.cancel_btn)
 
-        # 300 DPI Resolution Indicator / Toggle
-        self.dpi_btn = QPushButton(" 300 DPI")
-        self.dpi_btn.setObjectName("DpiBtn")
-        self.dpi_btn.setIcon(AppIcons.sparkles(13, "#38bdf8"))
-        self.dpi_btn.setToolTip("Screenshot Quality: 300 DPI Ultra (Click to toggle 300 DPI Ultra / 300 DPI Native 1:1)")
-        self.dpi_btn.setCursor(Qt.PointingHandCursor)
-        self.dpi_btn.clicked.connect(self._toggle_dpi_mode)
-        act_layout.addWidget(self.dpi_btn)
+        # Screenshot Output Quality Selector & Quick Toggle Button
+        self.quality_btn = QPushButton()
+        self.quality_btn.setObjectName("QualityBtn")
+        self.quality_btn.setCursor(Qt.PointingHandCursor)
+        self.quality_btn.clicked.connect(self._cycle_quality_mode)
+        self.quality_btn.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.quality_btn.customContextMenuRequested.connect(self._show_quality_menu)
+        self._update_quality_button_ui()
+        act_layout.addWidget(self.quality_btn)
 
         self.action_bar.hide()
 
@@ -478,21 +481,140 @@ class ScreenshotOverlay(QWidget):
         self._show_overlay_toast(labels.get(self.rect_fill_mode, "Square Fill Changed"))
         self.update()
 
-    def _toggle_dpi_mode(self):
-        if self.dpi_mode == "300_ultra":
-            self.dpi_mode = "300_native"
-            self.dpi_btn.setText(" 300 DPI (1:1)")
-            self.dpi_btn.setToolTip("Screenshot Quality: 300 DPI Native (1:1 Screen Pixels + 300 DPI Metadata)\nClick to switch to 300 DPI Ultra")
-            self._show_overlay_toast("Screenshot Quality: 300 DPI Native (1:1 Pixels)")
+    def _update_quality_button_ui(self):
+        if not hasattr(self, "quality_btn"):
+            return
+        mode = getattr(self, "quality_mode", "standard")
+        if mode == "standard":
+            self.quality_btn.setText(" ⚡ Standard")
+            self.quality_btn.setIcon(AppIcons.zap(13, "#10b981"))
+            self.quality_btn.setToolTip("Quality: Standard (1:1 Screen Pixels, Lightweight - Perfect for Chat/Web Sharing)\nClick or press 'Q' / 'D' to cycle | Right-click for options")
+            self.quality_btn.setStyleSheet("""
+                QPushButton#QualityBtn {
+                    background-color: rgba(16, 185, 129, 0.16);
+                    border: 1px solid rgba(16, 185, 129, 0.45);
+                    color: #10b981;
+                    font-size: 11px;
+                    padding: 3px 8px;
+                    border-radius: 4px;
+                    font-weight: 600;
+                }
+                QPushButton#QualityBtn:hover {
+                    background-color: rgba(16, 185, 129, 0.32);
+                    border-color: #10b981;
+                    color: #ffffff;
+                }
+            """)
+        elif mode == "high":
+            self.quality_btn.setText(" 💎 High (300 DPI)")
+            self.quality_btn.setIcon(AppIcons.sparkles(13, "#38bdf8"))
+            self.quality_btn.setToolTip("Quality: High (1:1 Screen Pixels + 300 DPI Print Density, Compact Size)\nClick or press 'Q' / 'D' to cycle | Right-click for options")
+            self.quality_btn.setStyleSheet("""
+                QPushButton#QualityBtn {
+                    background-color: rgba(56, 189, 248, 0.16);
+                    border: 1px solid rgba(56, 189, 248, 0.5);
+                    color: #38bdf8;
+                    font-size: 11px;
+                    padding: 3px 8px;
+                    border-radius: 4px;
+                    font-weight: 600;
+                }
+                QPushButton#QualityBtn:hover {
+                    background-color: rgba(56, 189, 248, 0.32);
+                    border-color: #38bdf8;
+                    color: #ffffff;
+                }
+            """)
+        elif mode == "ultra":
+            self.quality_btn.setText(" 🚀 Ultra HD")
+            self.quality_btn.setIcon(AppIcons.sparkles(13, "#fbbf24"))
+            self.quality_btn.setToolTip("Quality: Ultra HD (1.5x Supersampled + 300 DPI, Large Displays & 4K)\nClick or press 'Q' / 'D' to cycle | Right-click for options")
+            self.quality_btn.setStyleSheet("""
+                QPushButton#QualityBtn {
+                    background-color: rgba(251, 191, 36, 0.16);
+                    border: 1px solid rgba(251, 191, 36, 0.5);
+                    color: #fbbf24;
+                    font-size: 11px;
+                    padding: 3px 8px;
+                    border-radius: 4px;
+                    font-weight: 600;
+                }
+                QPushButton#QualityBtn:hover {
+                    background-color: rgba(251, 191, 36, 0.32);
+                    border-color: #fbbf24;
+                    color: #ffffff;
+                }
+            """)
         else:
-            self.dpi_mode = "300_ultra"
-            self.dpi_btn.setText(" 300 DPI")
-            self.dpi_btn.setToolTip("Screenshot Quality: 300 DPI Ultra (Super-Sampled Print Quality)\nClick to switch to 300 DPI Native")
-            self._show_overlay_toast("Screenshot Quality: 300 DPI Ultra (Super-Sampled)")
+            self.quality_mode = "standard"
+            self._update_quality_button_ui()
 
+    def _cycle_quality_mode(self):
+        modes = ["standard", "high", "ultra"]
+        try:
+            curr_idx = modes.index(self.quality_mode)
+        except ValueError:
+            curr_idx = 0
+        next_mode = modes[(curr_idx + 1) % len(modes)]
+        self._set_quality_mode(next_mode)
+
+    def _set_quality_mode(self, mode: str):
+        if mode not in ("standard", "high", "ultra"):
+            mode = "standard"
+        self.quality_mode = mode
+        self.dpi_mode = mode
         if self.db:
-            self.db.set_setting("screenshot_dpi_mode", self.dpi_mode)
+            self.db.set_setting("screenshot_quality", mode)
+            legacy_val = "300_ultra" if mode == "ultra" else ("300_native" if mode == "high" else "standard")
+            self.db.set_setting("screenshot_dpi_mode", legacy_val)
+        self._update_quality_button_ui()
+
+        labels = {
+            "standard": "Quality: ⚡ Standard (1:1 Native Screen, Small Size)",
+            "high": "Quality: 💎 High (1:1 Screen + 300 DPI Print Density, Compact)",
+            "ultra": "Quality: 🚀 Ultra HD (1.5x Supersampled + 300 DPI)"
+        }
+        self._show_overlay_toast(labels.get(mode, "Quality: Standard"))
         self.update()
+
+    def _show_quality_menu(self, pos: QPoint):
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #0f172a;
+                border: 1px solid rgba(56, 189, 248, 0.4);
+                border-radius: 6px;
+                padding: 4px;
+                color: #e2e8f0;
+                font-family: 'Segoe UI', Arial;
+                font-size: 11px;
+            }
+            QMenu::item {
+                padding: 6px 20px 6px 12px;
+                border-radius: 4px;
+            }
+            QMenu::item:selected {
+                background-color: rgba(56, 189, 248, 0.25);
+                color: #ffffff;
+            }
+        """)
+
+        act_std = menu.addAction("⚡ Standard (1:1 Native, Lightweight [Default])")
+        act_std.setCheckable(True)
+        act_std.setChecked(self.quality_mode == "standard")
+        act_std.triggered.connect(lambda: self._set_quality_mode("standard"))
+
+        act_high = menu.addAction("💎 High (1:1 Native Pixels + 300 DPI Print Density, Compact)")
+        act_high.setCheckable(True)
+        act_high.setChecked(self.quality_mode == "high")
+        act_high.triggered.connect(lambda: self._set_quality_mode("high"))
+
+        act_ultra = menu.addAction("🚀 Ultra HD (1.5x Supersampled + 300 DPI, Large Displays)")
+        act_ultra.setCheckable(True)
+        act_ultra.setChecked(self.quality_mode == "ultra")
+        act_ultra.triggered.connect(lambda: self._set_quality_mode("ultra"))
+
+        menu.exec(self.quality_btn.mapToGlobal(pos))
 
     def _show_overlay_toast(self, text: str):
         self._overlay_toast_text = text
@@ -533,14 +655,12 @@ class ScreenshotOverlay(QWidget):
         if not screens:
             return
 
-        # Refresh DPI mode setting
+        # Refresh Quality mode setting
         if self.db:
-            self.dpi_mode = self.db.get_setting("screenshot_dpi_mode", "300_ultra")
-            if hasattr(self, "dpi_btn"):
-                if self.dpi_mode == "300_native":
-                    self.dpi_btn.setText(" 300 DPI (1:1)")
-                else:
-                    self.dpi_btn.setText(" 300 DPI")
+            self.quality_mode = self.db.get_screenshot_quality()
+            self.dpi_mode = self.quality_mode
+            if hasattr(self, "quality_btn"):
+                self._update_quality_button_ui()
 
         # Calculate bounding rectangle of all screens
         self.virtual_rect = QRect()
@@ -970,7 +1090,7 @@ class ScreenshotOverlay(QWidget):
             self.annotations.pop()
             self.update()
 
-    # Final high-resolution 300 DPI composite image & pixmap generator
+    # Final composite image & pixmap generator with adaptive quality
     def render_result_image(self) -> Optional[QImage]:
         if not self.desktop_pixmap or not self.selection_rect.isValid() or self.selection_rect.isEmpty():
             return None
@@ -979,16 +1099,26 @@ class ScreenshotOverlay(QWidget):
         cropped = self.desktop_pixmap.copy(sel)
         base_img = cropped.toImage().convertToFormat(QImage.Format_ARGB32_Premultiplied)
 
-        # High-Quality 300 DPI Rendering
+        # Screen native DPI resolution
         screen = QGuiApplication.primaryScreen()
         screen_dpi = screen.logicalDotsPerInch() if screen else 96.0
         if screen_dpi <= 0:
             screen_dpi = 96.0
 
-        if self.dpi_mode == "300_native":
+        native_dots_per_m = int(round(screen_dpi * 39.3701))
+        if native_dots_per_m <= 0:
+            native_dots_per_m = self.DPI_96
+
+        mode = getattr(self, "quality_mode", "standard")
+        if mode == "ultra":
+            scale = 1.5
+            target_dots_per_m = self.DPI_300
+        elif mode == "high":
             scale = 1.0
-        else:
-            scale = max(1.0, 300.0 / screen_dpi)
+            target_dots_per_m = self.DPI_300
+        else:  # standard (default: 1:1 pixels, native display DPI, lightweight file size)
+            scale = 1.0
+            target_dots_per_m = native_dots_per_m
 
         target_w = max(1, int(round(sel.width() * scale)))
         target_h = max(1, int(round(sel.height() * scale)))
@@ -1003,8 +1133,8 @@ class ScreenshotOverlay(QWidget):
             scaled_base = base_img
 
         out_img = QImage(target_w, target_h, QImage.Format_ARGB32_Premultiplied)
-        out_img.setDotsPerMeterX(self.DPI_300)
-        out_img.setDotsPerMeterY(self.DPI_300)
+        out_img.setDotsPerMeterX(target_dots_per_m)
+        out_img.setDotsPerMeterY(target_dots_per_m)
 
         painter = QPainter(out_img)
         painter.setRenderHint(QPainter.Antialiasing, True)
@@ -1023,9 +1153,9 @@ class ScreenshotOverlay(QWidget):
 
         painter.end()
 
-        # Guarantee at least 300 DPI metadata is retained
-        out_img.setDotsPerMeterX(self.DPI_300)
-        out_img.setDotsPerMeterY(self.DPI_300)
+        # Guarantee final output carries the selected DPI metadata
+        out_img.setDotsPerMeterX(target_dots_per_m)
+        out_img.setDotsPerMeterY(target_dots_per_m)
         return out_img
 
     def render_result_pixmap(self) -> Optional[QPixmap]:
@@ -1037,18 +1167,15 @@ class ScreenshotOverlay(QWidget):
     def copy_screenshot(self):
         qimg = self.render_result_image()
         if qimg and not qimg.isNull():
-            qimg.setDotsPerMeterX(self.DPI_300)
-            qimg.setDotsPerMeterY(self.DPI_300)
-
             clipboard = QApplication.clipboard()
             mime_data = QMimeData()
             mime_data.setImageData(qimg)
 
-            # Raw image/png payload for modern apps at 300 DPI with maximum compression quality
+            # Raw image/png payload for modern apps
             ba = QByteArray()
             buf = QBuffer(ba)
             buf.open(QIODevice.WriteOnly)
-            qimg.save(buf, "PNG", 100)
+            qimg.save(buf, "PNG")
             buf.close()
             mime_data.setData("image/png", ba)
 
@@ -1065,20 +1192,20 @@ class ScreenshotOverlay(QWidget):
 
         default_name = f"Screenshot_{time.strftime('%Y%m%d_%H%M%S')}.png"
         default_path = os.path.join(get_default_screenshot_dir(), default_name)
+        mode = getattr(self, "quality_mode", "standard")
+        title_tag = "300 DPI" if mode in ("high", "ultra") else "Standard"
         filepath, _ = QFileDialog.getSaveFileName(
             self,
-            "Save Screenshot (300 DPI Quality)",
+            f"Save Screenshot ({title_tag} Quality)",
             default_path,
             "PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;All Files (*.*)"
         )
         if filepath:
-            qimg.setDotsPerMeterX(self.DPI_300)
-            qimg.setDotsPerMeterY(self.DPI_300)
             ext = os.path.splitext(filepath)[1].lower()
             if ext in ('.jpg', '.jpeg'):
-                qimg.save(filepath, "JPEG", 100)
+                qimg.save(filepath, "JPEG", 92)
             else:
-                qimg.save(filepath, "PNG", 100)
+                qimg.save(filepath, "PNG")
             self.screenshot_saved.emit(filepath)
             self.close_overlay()
 
@@ -1102,7 +1229,7 @@ class ScreenshotOverlay(QWidget):
             self.undo_annotation()
         elif key == Qt.Key_F:
             self._cycle_rect_fill_mode()
-        elif key == Qt.Key_D:
-            self._toggle_dpi_mode()
+        elif key in (Qt.Key_Q, Qt.Key_D):
+            self._cycle_quality_mode()
         else:
             super().keyPressEvent(event)
