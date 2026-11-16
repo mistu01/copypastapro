@@ -5,6 +5,7 @@ Next-generation Windows Clipboard Manager with 10-slot Pinning, 2FA TOTP Generat
 
 import sys
 import os
+import time
 import ctypes
 from ctypes import wintypes
 from typing import Optional
@@ -107,7 +108,9 @@ class CopyPastaApp:
         self.screenshot_overlay.screenshot_saved.connect(self._on_screenshot_saved)
 
         # Wire Signals
+        self.floating_bar.set_screenshot_overlay_ref(self.screenshot_overlay)
         self.floating_bar.expand_requested.connect(self._on_expand_requested)
+        self.floating_bar.item_clicked.connect(self._on_item_pasted_from_floating_bar)
         self.floating_bar.totp_cleared.connect(self._on_totp_cleared)
         self.floating_bar.screenshot_requested.connect(self._trigger_screenshot)
         self.floating_bar.minimized_to_tray.connect(self._on_bar_minimized_to_tray)
@@ -118,8 +121,11 @@ class CopyPastaApp:
 
         # Clipboard Monitor
         self._last_clip_text = ""
+        self._last_clip_time = 0.0
         self._last_image_hash = ""
+        self._last_image_time = 0.0
         self._last_image_source_path = ""
+        self._last_image_source_time = 0.0
         self.clipboard = self.app.clipboard()
         self.clipboard.dataChanged.connect(self._on_clipboard_changed)
 
@@ -129,6 +135,7 @@ class CopyPastaApp:
         # Show Floating Bar if enabled
         if self.db.get_bool_setting("floating_bar_enabled", True):
             self.floating_bar.show()
+            self.floating_bar.ensure_topmost()
 
         # Ensure native Windows clipboard is restored if app quits or crashes
         self.app.aboutToQuit.connect(lambda: configure_windows_clipboard_override(disable_native=False))
@@ -223,8 +230,13 @@ class CopyPastaApp:
         self.floating_bar.refresh_chips()
         self.floating_bar._ensure_within_screen()
         self.floating_bar.show()
+        self.floating_bar.ensure_topmost()
         self.floating_bar.raise_()
         self._update_tray_menu()
+
+    def _on_item_pasted_from_floating_bar(self, content: str):
+        if self.detailed_window.isVisible():
+            self.detailed_window.refresh_clipboard_items()
 
     def _on_hotkey_triggered(self, key_name: str):
         self.toggle_detailed_window()
@@ -253,19 +265,25 @@ class CopyPastaApp:
             if not mime:
                 return
 
+            now = time.time()
+            last_paste_time = getattr(self.paste_helper, "last_paste_time", 0.0)
+            is_recent_internal_paste = (now - last_paste_time) < 1.0
+
             # 1. Check for Image File URLs (e.g. copied from Windows File Explorer)
             if mime.hasUrls():
                 for url in mime.urls():
                     local_path = url.toLocalFile()
                     if local_path and is_image_file(local_path):
-                        if getattr(self.paste_helper, "last_copied_image_path", None) == local_path:
+                        if is_recent_internal_paste and getattr(self.paste_helper, "last_copied_image_path", None) == local_path:
                             return
-                        if local_path == self._last_image_source_path:
+                        if local_path == self._last_image_source_path and (now - getattr(self, "_last_image_source_time", 0.0)) < 0.4:
                             return
                         self._last_image_source_path = local_path
+                        self._last_image_source_time = now
                         meta = save_image_from_file(local_path)
                         if meta:
                             self._last_image_hash = meta.get("hash", "")
+                            self._last_image_time = now
                             self.db.add_image_item(meta)
                             self.floating_bar.refresh_chips()
                             if self.detailed_window.isVisible():
@@ -279,11 +297,12 @@ class CopyPastaApp:
                     meta = save_image_from_qimage(qimg)
                     if meta:
                         img_hash = meta.get("hash", "")
-                        if img_hash == self._last_image_hash:
+                        if is_recent_internal_paste and getattr(self.paste_helper, "last_copied_image_hash", None) == img_hash:
                             return
-                        if getattr(self.paste_helper, "last_copied_image_hash", None) == img_hash:
+                        if img_hash == self._last_image_hash and (now - getattr(self, "_last_image_time", 0.0)) < 0.4:
                             return
                         self._last_image_hash = img_hash
+                        self._last_image_time = now
                         self.db.add_image_item(meta)
                         self.floating_bar.refresh_chips()
                         if self.detailed_window.isVisible():
@@ -294,11 +313,13 @@ class CopyPastaApp:
             text = self.clipboard.text()
             if not text or not text.strip():
                 return
-            if text == self._last_clip_text or text == getattr(self.paste_helper, "last_copied_text", None):
-                self._last_clip_text = text
+            if is_recent_internal_paste and text == getattr(self.paste_helper, "last_copied_text", None):
+                return
+            if text == self._last_clip_text and (now - getattr(self, "_last_clip_time", 0.0)) < 0.4:
                 return
 
             self._last_clip_text = text
+            self._last_clip_time = now
             self.db.add_clipboard_item(text)
 
             # Auto-detect if copied text is a 2FA secret key or otpauth:// URI
@@ -371,6 +392,7 @@ class CopyPastaApp:
             self.floating_bar.refresh_chips()
             self.floating_bar._ensure_within_screen()
             self.floating_bar.show()
+            self.floating_bar.ensure_topmost()
             self.floating_bar.raise_()
         else:
             self.floating_bar.hide()

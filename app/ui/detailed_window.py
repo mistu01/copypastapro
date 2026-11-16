@@ -1528,6 +1528,8 @@ class DetailedWindow(QWidget):
         auto_paste = self.db.get_bool_setting("auto_paste_on_select", True)
         if not self.keep_open:
             self.hide()
+        else:
+            QTimer.singleShot(50, self.refresh_clipboard_items)
 
         if auto_paste:
             self.toast.show_message("Pasting into active window...")

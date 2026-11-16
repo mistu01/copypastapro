@@ -77,7 +77,8 @@ class Database:
                     is_pill_pinned INTEGER DEFAULT 0,
                     pill_pin_slot INTEGER DEFAULT NULL,
                     created_at REAL,
-                    last_used_at REAL
+                    last_used_at REAL,
+                    last_copied_at REAL
                 )
             """)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_is_pinned ON clipboard_items(is_pinned)")
@@ -93,8 +94,14 @@ class Database:
                 cursor.execute("ALTER TABLE clipboard_items ADD COLUMN pill_pin_slot INTEGER DEFAULT NULL")
             except sqlite3.OperationalError:
                 pass
+            try:
+                cursor.execute("ALTER TABLE clipboard_items ADD COLUMN last_copied_at REAL")
+            except sqlite3.OperationalError:
+                pass
+            cursor.execute("UPDATE clipboard_items SET last_copied_at = created_at WHERE last_copied_at IS NULL")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_is_pill_pinned ON clipboard_items(is_pill_pinned)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_pill_pin_slot ON clipboard_items(pill_pin_slot)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_last_copied ON clipboard_items(last_copied_at)")
 
             # 2FA TOTP accounts table
             cursor.execute("""
@@ -235,7 +242,9 @@ class Database:
 
     def add_clipboard_item(self, content: str) -> Optional[int]:
         """
-        Add an item to clipboard history. If it already exists, update its timestamp.
+        Add an item to clipboard history. If it already exists, update both its last_used_at
+        and last_copied_at timestamps so it moves to the top of both the detailed clipboard
+        and the floating pill bar.
         """
         if not content or not content.strip():
             return None
@@ -251,14 +260,18 @@ class Database:
             existing = cursor.fetchone()
             if existing:
                 item_id = existing["id"]
-                cursor.execute("UPDATE clipboard_items SET last_used_at = ? WHERE id = ?", (now, item_id))
+                cursor.execute("""
+                    UPDATE clipboard_items
+                    SET last_used_at = ?, last_copied_at = ?
+                    WHERE id = ?
+                """, (now, now, item_id))
                 conn.commit()
                 return item_id
             
             cursor.execute("""
-                INSERT INTO clipboard_items (content, content_type, char_count, is_pinned, pin_slot, created_at, last_used_at)
-                VALUES (?, ?, ?, 0, NULL, ?, ?)
-            """, (content, c_type, char_count, now, now))
+                INSERT INTO clipboard_items (content, content_type, char_count, is_pinned, pin_slot, created_at, last_used_at, last_copied_at)
+                VALUES (?, ?, ?, 0, NULL, ?, ?, ?)
+            """, (content, c_type, char_count, now, now, now))
             new_id = cursor.lastrowid
             conn.commit()
 
@@ -269,7 +282,7 @@ class Database:
     def add_image_item(self, image_meta: Dict[str, Any]) -> Optional[int]:
         """
         Add an image item to clipboard history. If identical hash or image path
-        already exists, update its last_used_at timestamp.
+        already exists, update its last_used_at and last_copied_at timestamps.
         """
         image_path = image_meta.get("image_path")
         if not image_path:
@@ -299,14 +312,18 @@ class Database:
 
             if existing:
                 item_id = existing["id"]
-                cursor.execute("UPDATE clipboard_items SET last_used_at = ? WHERE id = ?", (now, item_id))
+                cursor.execute("""
+                    UPDATE clipboard_items
+                    SET last_used_at = ?, last_copied_at = ?
+                    WHERE id = ?
+                """, (now, now, item_id))
                 conn.commit()
                 return item_id
 
             cursor.execute("""
-                INSERT INTO clipboard_items (content, content_type, char_count, is_pinned, pin_slot, created_at, last_used_at)
-                VALUES (?, 'image', ?, 0, NULL, ?, ?)
-            """, (content, size_bytes, now, now))
+                INSERT INTO clipboard_items (content, content_type, char_count, is_pinned, pin_slot, created_at, last_used_at, last_copied_at)
+                VALUES (?, 'image', ?, 0, NULL, ?, ?, ?)
+            """, (content, size_bytes, now, now, now))
             new_id = cursor.lastrowid
             conn.commit()
 
@@ -323,9 +340,10 @@ class Database:
 
     def get_history(self, search: str = "", limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """
-        Return history with pinned items first (slots 1..20), then unpinned items by id DESC.
-        Ordering unpinned items by id DESC ensures that selecting/pasting an entry
-        never changes its position in the clipboard history list.
+        Return history with pinned items first (slots 1..20), then unpinned items by last_used_at DESC, id DESC.
+        Ordering unpinned items by last_used_at DESC ensures that:
+        - Pasting an entry moves it to the latest position in the main detailed clipboard.
+        - Copying an existing entry again brings it to the top.
         If limit is None, defaults to the user's max_history_count setting.
         """
         if limit is None:
@@ -341,13 +359,13 @@ class Database:
                 cursor.execute("""
                     SELECT * FROM clipboard_items
                     WHERE content LIKE ?
-                    ORDER BY is_pinned DESC, pin_slot ASC, id DESC
+                    ORDER BY is_pinned DESC, pin_slot ASC, last_used_at DESC, id DESC
                     LIMIT ?
                 """, (query, limit))
             else:
                 cursor.execute("""
                     SELECT * FROM clipboard_items
-                    ORDER BY is_pinned DESC, pin_slot ASC, id DESC
+                    ORDER BY is_pinned DESC, pin_slot ASC, last_used_at DESC, id DESC
                     LIMIT ?
                 """, (limit,))
             return [dict(row) for row in cursor.fetchall()]
@@ -529,9 +547,10 @@ class Database:
         Return items specifically for the floating pill bar:
         - Allows pinning up to 5 items in the floating bar.
         - Pinned items are positioned on the RIGHT side of the bar.
-        - Unpinned items are positioned on the LEFT side, ordered by id DESC.
-        - Ordering unpinned items by id DESC ensures that selecting/pasting an entry
-          never changes its position in the floating pill bar.
+        - Unpinned items are positioned on the LEFT side, ordered by last_copied_at DESC, id DESC.
+        - Ordering unpinned items by last_copied_at DESC ensures that copying an existing entry
+          brings it to the top/front of the pill bar, while pasting an entry into an input box
+          preserves its current position in the pill bar without shifting chips under the user.
         """
         bar_limit = max(1, min(10, bar_limit))
         max_pinned = min(bar_limit, 5)
@@ -550,13 +569,13 @@ class Database:
                     cursor.execute(f"""
                         SELECT * FROM clipboard_items
                         WHERE id NOT IN ({placeholders})
-                        ORDER BY id DESC
+                        ORDER BY COALESCE(last_copied_at, created_at, id) DESC, id DESC
                         LIMIT ?
                     """, (*pill_pinned_ids, remaining))
                 else:
                     cursor.execute("""
                         SELECT * FROM clipboard_items
-                        ORDER BY id DESC
+                        ORDER BY COALESCE(last_copied_at, created_at, id) DESC, id DESC
                         LIMIT ?
                     """, (remaining,))
                 unpinned_items = [dict(row) for row in cursor.fetchall()]

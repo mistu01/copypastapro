@@ -36,6 +36,9 @@ SW_SHOW = 5
 class PasteHelper:
     def __init__(self):
         self.last_foreground_hwnd: Optional[int] = None
+        self.last_copied_text: Optional[str] = None
+        self.last_copied_image_path: Optional[str] = None
+        self.last_paste_time: float = 0.0
         self.our_pid = os.getpid()
         self._running = True
         self._paste_lock = threading.Lock()
@@ -77,6 +80,7 @@ class PasteHelper:
         or Win32 direct API as fallback without racing or clearing.
         """
         self.last_copied_text = text
+        self.last_paste_time = time.time()
 
         # 1. Update via Qt clipboard if available
         try:
@@ -111,6 +115,7 @@ class PasteHelper:
         3. File URL for Windows File Explorer and file drops
         """
         self.last_copied_image_path = image_path
+        self.last_paste_time = time.time()
 
         try:
             from PySide6.QtWidgets import QApplication

@@ -1,3 +1,23 @@
+## 📋 Release Notes - Mistus Copy Pasta (v1.3.34)
+
+### 📌 Dynamic Clipboard History Movement on Paste
+- **Pasted Entries Move to Latest in Detailed Clipboard**:
+  - Whenever an entry is pasted into any target input box (from the detailed flyout window or desktop pill bar), it immediately moves to the latest (top) position in the main detailed clipboard (`Win + V`).
+  - The desktop pill bar maintains its existing chip sequence during paste operations, preventing chips from shifting under the user's cursor while pasting multiple snippets.
+
+### ⚡ Instant Top Positioning on Re-Copy
+- **Existing Entries Move to Top of Detailed Menu & Pill Bar on Re-Copy**:
+  - If any entry already stored in clipboard history is copied again (text selection, image, or file), its position dynamically updates so that it immediately appears at the top of the main detailed menu AND the desktop pill bar menu.
+  - Features intelligent debounce logic to filter rapid duplicate OS notifications while recognizing deliberate re-copies of existing clippings.
+
+### 🛡️ Rock-Solid Always-On-Top Floating Pill Bar (Windows 10 & 11)
+- **Zero Hidden Pill Bar on Windows 10**:
+  - Solved an issue where the desktop floating pill bar could sometimes slip underneath other application windows without being minimized.
+  - Implemented Win32 `HWND_TOPMOST` z-order enforcement using `SetWindowPos` and `WS_EX_TOPMOST` / `WS_EX_NOACTIVATE` extended styles with `SWP_FRAMECHANGED`.
+  - Added an active topmost watchdog to ensure the pill bar stays reliably floating above all other windows unless explicitly minimized to the system tray.
+
+---
+
 ## 📋 Release Notes - Mistus Copy Pasta (v1.3.33)
 
 ### 📸 Optimized Screenshot Quality & Lightweight Output (Default Restored)

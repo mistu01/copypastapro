@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QLabel, QPushButton, QFrame,
     QMenu, QApplication, QToolTip
 )
-from PySide6.QtCore import Qt, QPoint, Signal, QTimer, QSize, QRect, QMimeData
+from PySide6.QtCore import Qt, QPoint, Signal, QTimer, QSize, QRect, QMimeData, QEvent
 from PySide6.QtGui import QAction, QCursor, QDrag, QPixmap, QPainter, QColor
 
 
@@ -159,11 +159,13 @@ class FloatingBar(QWidget):
         self.is_collapsed = self.db.get_bool_setting("floating_bar_collapsed", False)
         self._dragging = False
         self._drag_start_pos = QPoint()
+        self._screenshot_overlay_ref = None
 
         self._init_window()
         self._init_ui()
         self._load_position()
         self._setup_totp_timer()
+        self._setup_topmost_watchdog()
 
     def _init_window(self):
         self.setObjectName("FloatingBarWidget")
@@ -172,20 +174,68 @@ class FloatingBar(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setStyleSheet(DARK_THEME_QSS)
 
-    def showEvent(self, event):
-        super().showEvent(event)
+    def set_screenshot_overlay_ref(self, overlay):
+        """Set a reference to the screenshot overlay so the pill bar won't overlap active screenshots."""
+        self._screenshot_overlay_ref = overlay
+
+    def _setup_topmost_watchdog(self):
+        """Periodic watchdog to ensure pill bar stays on top even if other Windows apps activate."""
+        self._topmost_timer = QTimer(self)
+        self._topmost_timer.setInterval(1200)
+        self._topmost_timer.timeout.connect(self.ensure_topmost)
+        self._topmost_timer.start()
+
+    def ensure_topmost(self):
+        """
+        Enforce rock-solid, always-on-top behavior on Windows 10/11.
+        Ensures the floating pill bar never gets hidden under other windows without being explicitly minimized.
+        """
+        if not self.isVisible():
+            return
+        # Do not force topmost while full-screen screenshot annotation overlay is active
+        overlay = getattr(self, "_screenshot_overlay_ref", None)
+        if overlay and overlay.isVisible():
+            return
+
         hwnd = int(self.winId())
-        if hwnd:
+        if hwnd and sys.platform == "win32":
             try:
                 user32 = ctypes.windll.user32
                 GWL_EXSTYLE = -20
+                WS_EX_TOPMOST = 0x00000008
                 WS_EX_NOACTIVATE = 0x08000000
+                WS_EX_TOOLWINDOW = 0x00000080
+
+                HWND_TOPMOST = -1
+                SWP_NOMOVE = 0x0002
+                SWP_NOSIZE = 0x0001
+                SWP_NOACTIVATE = 0x0010
+                SWP_FRAMECHANGED = 0x0020
+
                 GetWindowLong = getattr(user32, "GetWindowLongPtrW", user32.GetWindowLongW)
                 SetWindowLong = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
                 ex_style = GetWindowLong(hwnd, GWL_EXSTYLE)
-                SetWindowLong(hwnd, GWL_EXSTYLE, ex_style | WS_EX_NOACTIVATE)
+                target_style = ex_style | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW
+                if ex_style != target_style:
+                    SetWindowLong(hwnd, GWL_EXSTYLE, target_style)
+
+                user32.SetWindowPos(
+                    hwnd,
+                    HWND_TOPMOST,
+                    0, 0, 0, 0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED
+                )
             except Exception:
                 pass
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.ensure_topmost()
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() in (QEvent.WindowStateChange, QEvent.ActivationChange):
+            self.ensure_topmost()
 
     def nativeEvent(self, eventType, message):
         if sys.platform == "win32" and eventType == b"windows_generic_MSG":
@@ -704,6 +754,7 @@ class FloatingBar(QWidget):
 
         if new_x != cur_x or new_y != cur_y:
             self.move(new_x, new_y)
+        self.ensure_topmost()
 
     # ================= Universal Dragging Support =================
     def start_drag(self, global_pos: QPoint):
