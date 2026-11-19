@@ -249,42 +249,52 @@ class ScreenshotOverlay(QWidget):
         self.action_bar.setObjectName("ScreenshotActionBar")
         self.action_bar.setStyleSheet("""
             QFrame#ScreenshotActionBar {
-                background-color: rgba(9, 14, 11, 0.96);
-                border: 1px solid rgba(16, 185, 129, 0.45);
-                border-radius: 6px;
-                padding: 2px 4px;
+                background-color: #141519;
+                border: 2.5px solid #000000;
+                border-bottom: 4px solid #000000;
+                border-right: 4px solid #000000;
+                border-radius: 8px;
+                padding: 4px 6px;
             }
             QPushButton {
-                background: transparent;
-                border: none;
-                border-radius: 4px;
+                background-color: #1E2027;
+                border: 1.5px solid #000000;
+                border-bottom: 2.5px solid #000000;
+                border-right: 2.5px solid #000000;
+                border-radius: 6px;
                 padding: 4px 8px;
-                color: #f0fdf4;
+                color: #FFFFFF;
                 font-family: 'Segoe UI', Arial;
                 font-size: 11px;
-                font-weight: 600;
+                font-weight: 700;
             }
             QPushButton:hover {
-                background-color: rgba(5, 150, 105, 0.4);
-                color: #00f59b;
+                background-color: #2B2F3A;
+                color: #FFE600;
+            }
+            QPushButton:pressed {
+                border: 1.5px solid #000000;
+                margin-top: 1px;
+                margin-left: 1px;
             }
             QPushButton#CloseBtn:hover {
-                background-color: rgba(244, 63, 94, 0.4);
-                color: #f43f5e;
+                background-color: #FF4757;
+                color: #FFFFFF;
             }
             QPushButton#QualityBtn {
-                background-color: rgba(16, 185, 129, 0.16);
-                border: 1px solid rgba(16, 185, 129, 0.45);
-                color: #10b981;
+                background-color: #1E2027;
+                border: 1.5px solid #000000;
+                border-bottom: 2.5px solid #000000;
+                border-right: 2.5px solid #000000;
+                color: #00F59B;
                 font-size: 11px;
                 padding: 3px 8px;
-                border-radius: 4px;
-                font-weight: 600;
+                border-radius: 6px;
+                font-weight: 800;
             }
             QPushButton#QualityBtn:hover {
-                background-color: rgba(16, 185, 129, 0.32);
-                border-color: #10b981;
-                color: #ffffff;
+                background-color: #00F59B;
+                color: #000000;
             }
         """)
         act_layout = QHBoxLayout(self.action_bar)
@@ -334,38 +344,43 @@ class ScreenshotOverlay(QWidget):
         self.draw_bar.setObjectName("ScreenshotDrawBar")
         self.draw_bar.setStyleSheet("""
             QFrame#ScreenshotDrawBar {
-                background-color: rgba(9, 14, 11, 0.96);
-                border: 1px solid rgba(16, 185, 129, 0.45);
-                border-radius: 6px;
+                background-color: #141519;
+                border: 2.5px solid #000000;
+                border-bottom: 4px solid #000000;
+                border-right: 4px solid #000000;
+                border-radius: 8px;
                 padding: 4px 2px;
             }
             QPushButton {
-                background: transparent;
-                border: 1px solid transparent;
-                border-radius: 4px;
+                background-color: #1E2027;
+                border: 1.5px solid #000000;
+                border-bottom: 2.5px solid #000000;
+                border-right: 2.5px solid #000000;
+                border-radius: 6px;
                 padding: 4px;
                 min-width: 24px;
                 min-height: 24px;
             }
             QPushButton:hover {
-                background-color: rgba(5, 150, 105, 0.35);
+                background-color: #2C303B;
             }
             QPushButton[checked="true"] {
-                background-color: rgba(0, 245, 155, 0.25);
-                border: 1px solid #00f59b;
+                background-color: #FFE600;
+                border: 1.5px solid #000000;
+                border-bottom: 2.5px solid #000000;
+                border-right: 2.5px solid #000000;
             }
             QPushButton#RectFillBtn {
-                border: 1px dashed rgba(56, 189, 248, 0.45);
-                background-color: rgba(15, 23, 42, 0.7);
-                border-radius: 4px;
+                border: 1.5px solid #000000;
+                background-color: #242731;
+                border-radius: 6px;
                 min-width: 22px;
                 min-height: 22px;
                 padding: 2px;
                 margin-top: -2px;
             }
             QPushButton#RectFillBtn:hover {
-                background-color: rgba(56, 189, 248, 0.25);
-                border-color: #38bdf8;
+                background-color: #2F3340;
             }
             QPushButton#RectFillBtn[active="true"] {
                 border: 1px solid #00f59b;

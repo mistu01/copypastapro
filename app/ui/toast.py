@@ -18,13 +18,16 @@ class Toast(QWidget):
 
         self.label = QLabel(self)
         self.label.setStyleSheet("""
-            background-color: rgba(8, 16, 12, 0.96);
-            color: #f0fdf4;
-            border: 1px solid rgba(0, 245, 155, 0.45);
+            background-color: #FFE600;
+            color: #000000;
+            border: 2.5px solid #000000;
+            border-bottom: 4.5px solid #000000;
+            border-right: 4.5px solid #000000;
             border-radius: 8px;
-            padding: 6px 14px;
+            padding: 7px 16px;
             font-size: 12px;
-            font-weight: 600;
+            font-weight: 800;
+            letter-spacing: 0.3px;
         """)
         layout.addWidget(self.label)
 

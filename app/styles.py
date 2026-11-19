@@ -1,455 +1,543 @@
 """
-ZeBeyond Cyber-Emerald Midnight Theme styling for Mistus Copy Pasta.
-Features deep obsidian green backgrounds, luminous neon mint/emerald accents,
-translucent glassmorphic surfaces, and refined typography.
+Neobrutalist Design System for Mistus Copy Pasta.
+Features high-contrast geometry, bold 2px/2.5px solid black borders,
+chunky hard-edged drop shadows, tactile physical button presses,
+vibrant electric accents (Lemon Yellow #FFE600, Neon Mint #00F59B,
+Cyber Cyan #38BDF8, Hot Coral #FF4757), and clean crisp typography.
 """
 
 DARK_THEME_QSS = """
 /* Global Window & Font Settings */
 QWidget {
-    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-    color: #f0fdf4;
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    color: #F8FAFC;
     background-color: transparent;
     font-size: 13px;
-    selection-background-color: #059669;
-    selection-color: #ffffff;
+    selection-background-color: #FFE600;
+    selection-color: #000000;
 }
 
 /* Detailed Flyout Window Background */
 #DetailedWindow, #FlyoutContainer {
-    background-color: #080d0a;
-    border: 1px solid rgba(16, 185, 129, 0.25);
-    border-radius: 16px;
+    background-color: #121316;
+    border: 2.5px solid #000000;
+    border-radius: 12px;
 }
 
-/* Floating Bar Container */
+/* Floating Bar Container - Chunky Neobrutalist Pill */
 #FloatingBarContainer {
-    background-color: #09120e;
-    border: 1px solid rgba(16, 185, 129, 0.35);
-    border-radius: 20px;
+    background-color: #121316;
+    border: 2.5px solid #000000;
+    border-bottom: 4px solid #000000;
+    border-right: 4px solid #000000;
+    border-radius: 14px;
 }
 
 #FloatingBarContainer:hover {
-    border-color: rgba(0, 245, 155, 0.65);
-    background-color: #0d1a14;
+    background-color: #17181D;
+    border-color: #000000;
+    border-bottom: 4.5px solid #000000;
+    border-right: 4.5px solid #000000;
 }
 
 /* Minimized Floating Island Container */
 #MinimizedFloatingContainer {
-    background-color: #09120e;
-    border: 1px solid rgba(0, 245, 155, 0.5);
-    border-radius: 18px;
+    background-color: #121316;
+    border: 2.5px solid #000000;
+    border-bottom: 4px solid #000000;
+    border-right: 4px solid #000000;
+    border-radius: 14px;
 }
 
 /* Header Area */
 #HeaderBar {
-    border-bottom: 1px solid rgba(16, 185, 129, 0.14);
+    border-bottom: 2.5px solid #000000;
     padding: 2px 4px 8px 4px;
 }
 
-/* Search Bar */
+/* Search Bar - Neobrutalist Inset Input */
 QLineEdit#SearchBar {
-    background-color: rgba(16, 185, 129, 0.06);
-    border: 1px solid rgba(16, 185, 129, 0.22);
-    border-radius: 9px;
+    background-color: #18191F;
+    border: 2px solid #000000;
+    border-bottom: 4px solid #000000;
+    border-right: 4px solid #000000;
+    border-radius: 8px;
     padding: 8px 14px;
-    color: #ffffff;
+    color: #FFFFFF;
     font-size: 13px;
+    font-weight: 600;
 }
 
 QLineEdit#SearchBar:hover {
-    background-color: rgba(16, 185, 129, 0.1);
-    border-color: rgba(0, 245, 155, 0.4);
+    background-color: #1E2028;
+    border-color: #000000;
 }
 
 QLineEdit#SearchBar:focus {
-    background-color: rgba(16, 185, 129, 0.14);
-    border: 1px solid #00f59b;
+    background-color: #22252E;
+    border: 2px solid #FFE600;
+    border-bottom: 4px solid #FFE600;
+    border-right: 4px solid #FFE600;
+    color: #FFFFFF;
 }
 
-/* Segmented Tab Bar */
+/* Segmented Tab Bar Container */
 #TabBarContainer {
-    background-color: rgba(16, 185, 129, 0.05);
-    border: 1px solid rgba(16, 185, 129, 0.15);
-    border-radius: 10px;
-    padding: 3px;
+    background-color: #16171D;
+    border: 2px solid #000000;
+    border-radius: 9px;
+    padding: 4px;
 }
 
+/* Neobrutalist Segmented Nav Tabs */
 QPushButton.NavTab {
-    background-color: transparent;
-    border: none;
-    border-radius: 7px;
-    padding: 6px 6px;
-    color: #a7f3d0;
-    font-weight: 500;
+    background-color: #1E2027;
+    border: 1.5px solid #000000;
+    border-bottom: 3px solid #000000;
+    border-right: 3px solid #000000;
+    border-radius: 6px;
+    padding: 6px 10px;
+    color: #CBD5E1;
+    font-weight: 700;
     font-size: 12px;
 }
 
 QPushButton.NavTab:hover {
-    background-color: rgba(16, 185, 129, 0.12);
-    color: #ffffff;
+    background-color: #282B35;
+    color: #FFFFFF;
+    border-bottom: 3.5px solid #000000;
+    border-right: 3.5px solid #000000;
 }
 
 QPushButton.NavTab:checked {
-    background-color: #059669;
-    border: 1px solid #10b981;
-    color: #ffffff;
-    font-weight: 700;
+    background-color: #FFE600;
+    border: 2px solid #000000;
+    border-bottom: 3.5px solid #000000;
+    border-right: 3.5px solid #000000;
+    color: #000000;
+    font-weight: 800;
 }
 
-/* Checkbox Modern Styling */
-QCheckBox {
-    spacing: 8px;
-    color: #f0fdf4;
-    font-size: 13px;
-    font-weight: 500;
-}
-
-/* Action Icon Buttons */
+/* Action Icon Buttons - Chunky & Tactile */
 QPushButton.IconButton {
-    background-color: transparent;
-    border: none;
+    background-color: #1E2027;
+    border: 1.5px solid #000000;
+    border-bottom: 2.5px solid #000000;
+    border-right: 2.5px solid #000000;
     border-radius: 6px;
     padding: 4px;
-    color: #a7f3d0;
+    color: #CBD5E1;
 }
 
 QPushButton.IconButton:hover {
-    background-color: rgba(16, 185, 129, 0.16);
-    color: #00f59b;
+    background-color: #2C303B;
+    color: #FFE600;
+    border-color: #000000;
+    border-bottom: 3px solid #000000;
+    border-right: 3px solid #000000;
 }
 
 QPushButton.IconButton:pressed {
-    background-color: rgba(16, 185, 129, 0.25);
+    background-color: #FFE600;
+    color: #000000;
+    border: 1.5px solid #000000;
+    margin-top: 1px;
+    margin-left: 1px;
 }
 
-/* Primary Action Buttons (ZeBeyond Emerald / Mint) */
+/* Primary Action Button - Electric Lemon Yellow */
 QPushButton.PrimaryButton, QPushButton[class="PrimaryButton"] {
-    background-color: #059669;
-    border: 1px solid #10b981;
+    background-color: #FFE600;
+    border: 2px solid #000000;
+    border-bottom: 4px solid #000000;
+    border-right: 4px solid #000000;
     border-radius: 7px;
-    color: #ffffff;
-    font-weight: 600;
-    padding: 7px 14px;
+    color: #000000;
+    font-weight: 800;
+    padding: 7px 16px;
     font-size: 12px;
+    letter-spacing: 0.3px;
 }
 
 QPushButton.PrimaryButton:hover, QPushButton[class="PrimaryButton"]:hover {
-    background-color: #10b981;
-    border-color: #00f59b;
-    color: #080d0a;
+    background-color: #FFF04D;
+    border-bottom: 5px solid #000000;
+    border-right: 5px solid #000000;
+    color: #000000;
 }
 
-/* Success Emerald Button */
+QPushButton.PrimaryButton:pressed, QPushButton[class="PrimaryButton"]:pressed {
+    border: 2px solid #000000;
+    margin-top: 2px;
+    margin-left: 2px;
+}
+
+/* Success Button - Neon Mint Green */
 QPushButton.SuccessButton, QPushButton[class="SuccessButton"] {
-    background-color: #059669;
-    border: 1px solid #00f59b;
+    background-color: #00F59B;
+    border: 2px solid #000000;
+    border-bottom: 4px solid #000000;
+    border-right: 4px solid #000000;
     border-radius: 7px;
-    color: #ffffff;
-    font-weight: 600;
+    color: #000000;
+    font-weight: 800;
+    padding: 7px 16px;
+    font-size: 12px;
+    letter-spacing: 0.3px;
+}
+
+QPushButton.SuccessButton:hover, QPushButton[class="SuccessButton"]:hover {
+    background-color: #38FFB4;
+    border-bottom: 5px solid #000000;
+    border-right: 5px solid #000000;
+    color: #000000;
+}
+
+QPushButton.SuccessButton:pressed, QPushButton[class="SuccessButton"]:pressed {
+    border: 2px solid #000000;
+    margin-top: 2px;
+    margin-left: 2px;
+}
+
+/* Secondary Button - Brutalist Slate */
+QPushButton.SecondaryButton, QPushButton[class="SecondaryButton"] {
+    background-color: #242731;
+    border: 2px solid #000000;
+    border-bottom: 3.5px solid #000000;
+    border-right: 3.5px solid #000000;
+    border-radius: 7px;
+    color: #F8FAFC;
+    padding: 7px 14px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+QPushButton.SecondaryButton:hover, QPushButton[class="SecondaryButton"]:hover {
+    background-color: #2F3340;
+    color: #FFFFFF;
+    border-bottom: 4.5px solid #000000;
+    border-right: 4.5px solid #000000;
+}
+
+QPushButton.SecondaryButton:pressed, QPushButton[class="SecondaryButton"]:pressed {
+    border: 2px solid #000000;
+    margin-top: 2px;
+    margin-left: 2px;
+}
+
+/* Danger Button - Hot Coral Red */
+QPushButton.DangerButton, QPushButton[class="DangerButton"] {
+    background-color: #FF4757;
+    border: 2px solid #000000;
+    border-bottom: 4px solid #000000;
+    border-right: 4px solid #000000;
+    border-radius: 7px;
+    color: #FFFFFF;
+    font-weight: 800;
     padding: 7px 14px;
     font-size: 12px;
 }
 
-QPushButton.SuccessButton:hover, QPushButton[class="SuccessButton"]:hover {
-    background-color: #10b981;
-    color: #080d0a;
+QPushButton.DangerButton:hover {
+    background-color: #FF6B81;
 }
 
-/* Secondary Button */
-QPushButton.SecondaryButton, QPushButton[class="SecondaryButton"] {
-    background-color: rgba(16, 185, 129, 0.08);
-    border: 1px solid rgba(16, 185, 129, 0.2);
-    border-radius: 7px;
-    color: #d1fae5;
-    padding: 7px 12px;
-    font-size: 12px;
-    font-weight: 500;
+QPushButton.DangerButton:pressed {
+    border: 2px solid #000000;
+    margin-top: 2px;
+    margin-left: 2px;
 }
 
-QPushButton.SecondaryButton:hover, QPushButton[class="SecondaryButton"]:hover {
-    background-color: rgba(16, 185, 129, 0.18);
-    border-color: rgba(0, 245, 155, 0.45);
-    color: #ffffff;
-}
-
-/* Clipboard History Card */
+/* Clipboard History Card - High Contrast Neobrutalist Block */
 QFrame.ClipboardCard {
-    background-color: rgba(13, 24, 19, 0.65);
-    border: 1px solid rgba(16, 185, 129, 0.16);
-    border-radius: 11px;
+    background-color: #1A1C23;
+    border: 2px solid #000000;
+    border-bottom: 4px solid #000000;
+    border-right: 4px solid #000000;
+    border-radius: 8px;
 }
 
 QFrame.ClipboardCard:hover {
-    background-color: rgba(16, 185, 129, 0.12);
-    border-color: rgba(0, 245, 155, 0.45);
+    background-color: #22252E;
+    border-color: #000000;
+    border-bottom: 5px solid #000000;
+    border-right: 5px solid #000000;
 }
 
-/* Pinned Clipboard Card */
+/* Pinned Clipboard Card - Bold Amber Gold Accent */
 QFrame.PinnedCard {
-    background-color: rgba(245, 158, 11, 0.09);
-    border: 1px solid rgba(245, 158, 11, 0.38);
-    border-radius: 11px;
+    background-color: #26221A;
+    border: 2px solid #F59E0B;
+    border-bottom: 4px solid #F59E0B;
+    border-right: 4px solid #F59E0B;
+    border-radius: 8px;
 }
 
 QFrame.PinnedCard:hover {
-    background-color: rgba(245, 158, 11, 0.15);
-    border-color: rgba(245, 158, 11, 0.65);
+    background-color: #2F2A1F;
+    border-color: #FBBF24;
+    border-bottom: 5px solid #FBBF24;
+    border-right: 5px solid #FBBF24;
 }
 
-/* Pin Slot Badge */
+/* Empty Pinned Slot Drop Frame */
+QFrame.EmptySlotFrame {
+    background-color: #16171D;
+    border: 2px dashed #3E4352;
+    border-radius: 8px;
+}
+
+/* Badges - Bold High-Contrast Neobrutalist Tags with Solid Black Borders */
 .PinSlotBadge, QFrame.PinSlotBadge, QLabel.PinSlotBadge {
-    background-color: #d97706;
-    color: #ffffff;
-    font-weight: 700;
+    background-color: #FFE600;
+    color: #000000;
+    font-weight: 800;
     font-size: 10px;
-    border-radius: 5px;
-    padding: 2px 6px;
+    border: 1.5px solid #000000;
+    border-radius: 4px;
+    padding: 2px 7px;
     letter-spacing: 0.5px;
 }
 
-/* Entry Index Number Badge (#1, #2, ...) */
 .EntryIndexBadge, QFrame.EntryIndexBadge, QLabel.EntryIndexBadge {
-    background-color: rgba(56, 189, 248, 0.12);
-    border: 1px solid rgba(56, 189, 248, 0.30);
-    color: #38bdf8;
-    font-weight: 700;
+    background-color: #38BDF8;
+    color: #000000;
+    font-weight: 800;
     font-size: 10px;
-    border-radius: 5px;
+    border: 1.5px solid #000000;
+    border-radius: 4px;
     padding: 2px 6px;
     letter-spacing: 0.3px;
 }
 
-/* Type Pill Badges */
+/* Content Type Pill Badges */
 .TypeBadgeUrl, QFrame.TypeBadgeUrl, QLabel.TypeBadgeUrl {
-    background-color: rgba(0, 245, 155, 0.14);
-    border: 1px solid rgba(0, 245, 155, 0.35);
-    color: #00f59b;
-    font-weight: 700;
+    background-color: #00F59B;
+    border: 1.5px solid #000000;
+    color: #000000;
+    font-weight: 800;
     font-size: 10px;
-    border-radius: 5px;
+    border-radius: 4px;
     padding: 2px 6px;
 }
 
 .TypeBadgeCode, QFrame.TypeBadgeCode, QLabel.TypeBadgeCode {
-    background-color: rgba(167, 139, 250, 0.14);
-    border: 1px solid rgba(167, 139, 250, 0.35);
-    color: #c4b5fd;
-    font-weight: 700;
+    background-color: #C084FC;
+    border: 1.5px solid #000000;
+    color: #000000;
+    font-weight: 800;
     font-size: 10px;
-    border-radius: 5px;
+    border-radius: 4px;
     padding: 2px 6px;
 }
 
 .TypeBadgeEmail, QFrame.TypeBadgeEmail, QLabel.TypeBadgeEmail {
-    background-color: rgba(245, 158, 11, 0.14);
-    border: 1px solid rgba(245, 158, 11, 0.35);
-    color: #f59e0b;
-    font-weight: 700;
+    background-color: #FB923C;
+    border: 1.5px solid #000000;
+    color: #000000;
+    font-weight: 800;
     font-size: 10px;
-    border-radius: 5px;
+    border-radius: 4px;
     padding: 2px 6px;
 }
 
 .TypeBadgeText, QFrame.TypeBadgeText, QLabel.TypeBadgeText {
-    background-color: rgba(16, 185, 129, 0.12);
-    border: 1px solid rgba(16, 185, 129, 0.25);
-    color: #6ee7b7;
-    font-weight: 600;
+    background-color: #E2E8F0;
+    border: 1.5px solid #000000;
+    color: #000000;
+    font-weight: 800;
     font-size: 10px;
-    border-radius: 5px;
+    border-radius: 4px;
     padding: 2px 6px;
 }
 
 .TypeBadgeImage, QFrame.TypeBadgeImage, QLabel.TypeBadgeImage {
-    background-color: rgba(56, 189, 248, 0.16);
-    border: 1px solid rgba(56, 189, 248, 0.45);
-    color: #38bdf8;
-    font-weight: 700;
+    background-color: #38BDF8;
+    border: 1.5px solid #000000;
+    color: #000000;
+    font-weight: 800;
     font-size: 10px;
-    border-radius: 5px;
+    border-radius: 4px;
     padding: 2px 6px;
 }
 
 QLabel.ImageThumbnail {
-    border: 1px solid rgba(16, 185, 129, 0.3);
+    border: 2px solid #000000;
     border-radius: 6px;
-    background-color: #0b120d;
+    background-color: #121316;
     padding: 2px;
 }
 
-/* Active 2FA Hero Card - Solid clean dark obsidian emerald */
+/* Active 2FA Hero Card */
 QFrame#ActiveTotpHeroCard {
-    background-color: #061710;
-    border: 1px solid rgba(0, 245, 155, 0.45);
-    border-radius: 12px;
+    background-color: #161A24;
+    border: 2.5px solid #000000;
+    border-bottom: 5px solid #000000;
+    border-right: 5px solid #000000;
+    border-radius: 10px;
     padding: 14px 16px;
 }
 
-/* Clean Segoe UI 2FA Code Display */
+/* 2FA Code Display */
 QLabel.TotpCodeHero {
     font-family: "Segoe UI", Arial, sans-serif;
-    font-size: 26px;
-    font-weight: 700;
-    color: #00f59b;
-    letter-spacing: 4px;
+    font-size: 28px;
+    font-weight: 800;
+    color: #FFE600;
+    letter-spacing: 5px;
     padding: 4px 0;
 }
 
 QLabel.TotpCodeLabel {
     font-family: "Segoe UI", Arial, sans-serif;
     font-size: 20px;
-    font-weight: 700;
-    color: #34d399;
+    font-weight: 800;
+    color: #00F59B;
     letter-spacing: 2px;
 }
 
 /* Section Header Labels */
 QLabel.SectionHeader {
-    color: #6ee7b7;
+    color: #FFE600;
     font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 1px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
     text-transform: uppercase;
-    padding: 4px 2px;
+    padding: 6px 2px 4px 2px;
 }
 
-/* Floating Bar Snippet Chip */
+/* Floating Bar Snippet Chips - Tactile Neobrutalist Buttons */
 QPushButton.FloatingChip {
-    background-color: rgba(16, 185, 129, 0.08);
-    border: 1px solid rgba(16, 185, 129, 0.2);
-    border-radius: 12px;
-    color: #ecfdf5;
+    background-color: #1E2027;
+    border: 1.5px solid #000000;
+    border-bottom: 3px solid #000000;
+    border-right: 3px solid #000000;
+    border-radius: 6px;
+    color: #F8FAFC;
     font-size: 12px;
+    font-weight: 600;
     padding: 4px 11px;
     text-align: left;
 }
 
 QPushButton.FloatingChip:hover {
-    background-color: rgba(16, 185, 129, 0.22);
-    border-color: #00f59b;
-    color: #ffffff;
+    background-color: #292D38;
+    color: #FFE600;
+    border-bottom: 3.5px solid #000000;
+    border-right: 3.5px solid #000000;
+}
+
+QPushButton.FloatingChip:pressed {
+    border: 1.5px solid #000000;
+    margin-top: 1px;
+    margin-left: 1px;
 }
 
 QPushButton.FloatingChipPinned {
-    background-color: rgba(245, 158, 11, 0.14);
-    border: 1px solid rgba(245, 158, 11, 0.45);
-    border-radius: 12px;
-    color: #fef3c7;
+    background-color: #FFE600;
+    border: 1.5px solid #000000;
+    border-bottom: 3px solid #000000;
+    border-right: 3px solid #000000;
+    border-radius: 6px;
+    color: #000000;
     font-size: 12px;
+    font-weight: 800;
     padding: 4px 11px;
     text-align: left;
 }
 
 QPushButton.FloatingChipPinned:hover {
-    background-color: rgba(245, 158, 11, 0.28);
-    border-color: #f59e0b;
-    color: #ffffff;
+    background-color: #FFF04D;
+    border-bottom: 3.5px solid #000000;
+    border-right: 3.5px solid #000000;
 }
 
+QPushButton.FloatingChipPinned:pressed {
+    border: 1.5px solid #000000;
+    margin-top: 1px;
+    margin-left: 1px;
+}
 
 /* Floating Bar 2FA Live Chip Container */
 QFrame#FloatingTotpContainer {
-    background-color: rgba(5, 150, 105, 0.22);
-    border: 1px solid rgba(0, 245, 155, 0.55);
-    border-radius: 12px;
+    background-color: #00F59B;
+    border: 1.5px solid #000000;
+    border-bottom: 3px solid #000000;
+    border-right: 3px solid #000000;
+    border-radius: 6px;
 }
 
 QPushButton#FloatingTotpInnerBtn {
     background: transparent;
     border: none;
-    color: #00f59b;
+    color: #000000;
     font-family: "Segoe UI", Arial, sans-serif;
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 800;
     padding: 3px 4px 3px 6px;
     text-align: left;
 }
 
 QPushButton#FloatingTotpInnerBtn:hover {
-    color: #ffffff;
+    color: #121316;
 }
 
 QPushButton#FloatingTotpDismissBtn {
     background: transparent;
     border: none;
-    border-radius: 8px;
+    border-radius: 4px;
     padding: 1px;
     margin-right: 3px;
 }
 
 QPushButton#FloatingTotpDismissBtn:hover {
-    background-color: rgba(244, 63, 94, 0.35);
+    background-color: #FF4757;
+    color: #FFFFFF;
 }
 
-/* Floating Bar 2FA Live Chip Legacy */
-QPushButton.FloatingTotpChip {
-    background-color: rgba(5, 150, 105, 0.22);
-    border: 1px solid rgba(0, 245, 155, 0.55);
-    border-radius: 12px;
-    color: #00f59b;
-    font-family: "Segoe UI", Arial, sans-serif;
-    font-size: 12px;
-    font-weight: 700;
-    padding: 4px 12px;
-}
-
-QPushButton.FloatingTotpChip:hover {
-    background-color: rgba(16, 185, 129, 0.35);
-    border-color: #00f59b;
-    color: #ffffff;
-}
-
-/* Drag Grip Button */
 QPushButton.DragGripBtn {
     background: transparent;
     border: none;
     padding: 2px 4px;
-    color: #6ee7b7;
+    color: #FFE600;
 }
 
 QPushButton.DragGripBtn:hover {
-    color: #00f59b;
+    color: #FFF04D;
 }
 
-/* Scroll Area Styling - Eliminate horizontal scrollbar completely */
+/* Chunky Neobrutalist Scrollbars */
 QScrollArea {
     border: none;
     background: transparent;
 }
 
 QScrollBar:vertical {
-    border: none;
-    background: rgba(0, 0, 0, 0.15);
-    width: 10px;
-    margin: 3px 2px 3px 0px;
-    border-radius: 5px;
+    border: 1.5px solid #000000;
+    background: #141519;
+    width: 12px;
+    margin: 2px 2px 2px 0px;
+    border-radius: 6px;
 }
 
 QScrollBar::handle:vertical {
-    background: rgba(16, 185, 129, 0.35);
+    background: #FFE600;
+    border: 1.5px solid #000000;
     min-height: 28px;
-    border-radius: 5px;
+    border-radius: 4px;
 }
 
 QScrollBar::handle:vertical:hover {
-    background: rgba(0, 245, 155, 0.65);
+    background: #FFF04D;
 }
 
 QScrollBar::handle:vertical:pressed {
-    background: rgba(0, 245, 155, 0.85);
+    background: #E6CE00;
 }
 
 QScrollBar:horizontal {
     height: 0px;
     width: 0px;
-    border: none;
-    background: transparent;
-}
-
-QScrollBar::handle:horizontal, QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-    width: 0px;
-    height: 0px;
     border: none;
     background: transparent;
 }
@@ -462,5 +550,91 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
 
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
     background: none;
+}
+
+/* Settings Combos & Inputs */
+QComboBox, QComboBox.SettingsCombo, QComboBox[class="SettingsCombo"] {
+    background-color: #1E2027;
+    border: 2px solid #000000;
+    border-bottom: 3.5px solid #000000;
+    border-right: 3.5px solid #000000;
+    border-radius: 6px;
+    padding: 6px 12px;
+    color: #FFFFFF;
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 180px;
+}
+
+QComboBox:hover, QComboBox[class="SettingsCombo"]:hover {
+    background-color: #272B35;
+}
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 24px;
+    border-left: 2px solid #000000;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #1E2027;
+    border: 2px solid #000000;
+    color: #FFFFFF;
+    selection-background-color: #FFE600;
+    selection-color: #000000;
+    padding: 4px;
+}
+
+/* Neobrutalist Checkbox */
+QCheckBox {
+    spacing: 8px;
+    color: #F8FAFC;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #000000;
+    border-radius: 4px;
+    background-color: #1E2027;
+}
+
+QCheckBox::indicator:hover {
+    background-color: #2A2E39;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #FFE600;
+    border: 2px solid #000000;
+}
+
+/* Sliders */
+QSlider::groove:horizontal {
+    border: 1.5px solid #000000;
+    height: 8px;
+    background: #1E2027;
+    border-radius: 4px;
+}
+
+QSlider::sub-page:horizontal {
+    background: #FFE600;
+    border: 1.5px solid #000000;
+    border-radius: 4px;
+}
+
+QSlider::handle:horizontal {
+    background: #FFFFFF;
+    border: 2px solid #000000;
+    width: 18px;
+    margin-top: -6px;
+    margin-bottom: -6px;
+    border-radius: 5px;
+}
+
+QSlider::handle:horizontal:hover {
+    background: #FFE600;
 }
 """

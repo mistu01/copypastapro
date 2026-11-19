@@ -69,8 +69,10 @@ class SelectionCopyBadge(QWidget):
         self.pill = QFrame()
         self.pill.setStyleSheet("""
             QFrame {
-                background: rgba(6, 16, 11, 0.94);
-                border: 1px solid rgba(0, 245, 155, 0.45);
+                background: #141519;
+                border: 2px solid #000000;
+                border-bottom: 3.5px solid #000000;
+                border-right: 3.5px solid #000000;
                 border-radius: 8px;
             }
         """)
@@ -80,7 +82,7 @@ class SelectionCopyBadge(QWidget):
 
         # Icon Label
         self.icon_lbl = QLabel()
-        self.icon_lbl.setPixmap(AppIcons.pixmap("clipboard", 13, "#00f59b"))
+        self.icon_lbl.setPixmap(AppIcons.pixmap("clipboard", 13, "#FFE600"))
         self.icon_lbl.setStyleSheet("background: transparent; border: none;")
         pill_layout.addWidget(self.icon_lbl)
 
@@ -91,14 +93,14 @@ class SelectionCopyBadge(QWidget):
             QPushButton {
                 background: transparent;
                 border: none;
-                color: #e2e8f0;
+                color: #FFFFFF;
                 font-family: 'Segoe UI', Arial, sans-serif;
                 font-size: 11px;
-                font-weight: 600;
+                font-weight: 700;
                 padding: 1px 2px;
             }
             QPushButton:hover {
-                color: #00f59b;
+                color: #FFE600;
             }
         """)
         self.action_btn.clicked.connect(self._on_action_clicked)
@@ -107,12 +109,12 @@ class SelectionCopyBadge(QWidget):
         # Key Cap Badge "[C]"
         self.keycap_lbl = QLabel("C")
         self.keycap_lbl.setStyleSheet("""
-            background: rgba(0, 245, 155, 0.18);
-            border: 1px solid rgba(0, 245, 155, 0.4);
+            background: #FFE600;
+            border: 1.5px solid #000000;
             border-radius: 4px;
-            color: #00f59b;
+            color: #000000;
             font-size: 10px;
-            font-weight: 700;
+            font-weight: 800;
             padding: 1px 5px;
             font-family: 'Segoe UI', monospace;
         """)
@@ -126,14 +128,14 @@ class SelectionCopyBadge(QWidget):
             QPushButton {
                 background: transparent;
                 border: none;
-                color: #64748b;
+                color: #94A3B8;
                 font-size: 13px;
                 font-weight: 700;
                 padding: 0;
                 margin-left: 2px;
             }
             QPushButton:hover {
-                color: #f43f5e;
+                color: #FF4757;
             }
         """)
         self.close_btn.clicked.connect(self.hide_badge)
@@ -155,8 +157,10 @@ class SelectionCopyBadge(QWidget):
         self.keycap_lbl.show()
         self.pill.setStyleSheet("""
             QFrame {
-                background: rgba(6, 16, 11, 0.94);
-                border: 1px solid rgba(0, 245, 155, 0.45);
+                background: #141519;
+                border: 2px solid #000000;
+                border-bottom: 3.5px solid #000000;
+                border-right: 3.5px solid #000000;
                 border-radius: 8px;
             }
         """)
@@ -191,18 +195,20 @@ class SelectionCopyBadge(QWidget):
             QPushButton {
                 background: transparent;
                 border: none;
-                color: #00f59b;
+                color: #000000;
                 font-family: 'Segoe UI', Arial, sans-serif;
                 font-size: 11px;
-                font-weight: 700;
+                font-weight: 800;
                 padding: 1px 2px;
             }
         """)
         self.keycap_lbl.hide()
         self.pill.setStyleSheet("""
             QFrame {
-                background: rgba(4, 26, 16, 0.96);
-                border: 1px solid rgba(0, 245, 155, 0.8);
+                background: #00F59B;
+                border: 2px solid #000000;
+                border-bottom: 3.5px solid #000000;
+                border-right: 3.5px solid #000000;
                 border-radius: 8px;
             }
         """)

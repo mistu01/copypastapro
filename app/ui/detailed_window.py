@@ -13,9 +13,12 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QScrollArea, QFrame, QStackedWidget,
     QProgressBar, QMessageBox, QSlider, QCheckBox, QComboBox,
-    QGraphicsDropShadowEffect, QApplication, QSizePolicy
+    QGraphicsDropShadowEffect, QApplication, QSizePolicy, QMenu
 )
-from PySide6.QtCore import Qt, QTimer, Signal, QPoint, QSize, QMimeData
+from PySide6.QtCore import (
+    Qt, QTimer, Signal, QPoint, QSize, QMimeData,
+    QPropertyAnimation, QEasingCurve, QEvent, QObject
+)
 from PySide6.QtGui import QColor, QPixmap, QKeySequence, QShortcut, QDrag, QPainter
 
 from app.database import Database
@@ -32,6 +35,46 @@ user32 = ctypes.windll.user32
 kernel32 = ctypes.windll.kernel32
 
 
+class SmoothScrollFilter(QObject):
+    """
+    High-performance smooth scrolling event filter for QScrollArea.
+    Smoothly interpolates mouse wheel ticks using an OutCubic easing curve,
+    eliminating step-jump stutter and scroll jitter.
+    """
+    def __init__(self, scroll_area: QScrollArea, parent=None):
+        super().__init__(parent)
+        self.scroll_area = scroll_area
+        self.bar = scroll_area.verticalScrollBar()
+        self._target_value = self.bar.value()
+        self._anim = QPropertyAnimation(self.bar, b"value", self)
+        self._anim.setEasingCurve(QEasingCurve.OutCubic)
+        self._anim.setDuration(150)
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Wheel:
+            delta = event.angleDelta().y()
+            if delta != 0:
+                steps = -delta / 120.0
+                step_size = 85
+
+                if self._anim.state() == QPropertyAnimation.Running:
+                    base = self._target_value
+                else:
+                    base = self.bar.value()
+
+                new_target = int(base + steps * step_size)
+                new_target = max(self.bar.minimum(), min(self.bar.maximum(), new_target))
+
+                if new_target != self.bar.value():
+                    self._target_value = new_target
+                    self._anim.stop()
+                    self._anim.setStartValue(self.bar.value())
+                    self._anim.setEndValue(new_target)
+                    self._anim.start()
+                return True
+        return super().eventFilter(obj, event)
+
+
 class PinnedCardDragHandle(QPushButton):
     """
     Dedicated drag handle button on pinned cards in the detailed menu.
@@ -43,7 +86,7 @@ class PinnedCardDragHandle(QPushButton):
         self.parent_card = parent_card
         self._drag_start_pos: Optional[QPoint] = None
         self.setProperty("class", "DragGripBtn")
-        self.setIcon(AppIcons.drag_grip(16, "#38bdf8"))
+        self.setIcon(AppIcons.drag_grip(16, "#FFE600"))
         self.setIconSize(QSize(16, 16))
         self.setFixedSize(22, 26)
         self.setCursor(Qt.SizeAllCursor)
@@ -75,14 +118,14 @@ class PinnedCardDragHandle(QPushButton):
         ghost = QPixmap(pixmap.size())
         ghost.fill(Qt.transparent)
         painter = QPainter(ghost)
-        painter.setOpacity(0.80)
+        painter.setOpacity(0.85)
         painter.drawPixmap(0, 0, pixmap)
         painter.end()
 
         drag.setPixmap(ghost)
         drag.setHotSpot(QPoint(min(120, ghost.width() // 4), min(30, ghost.height() // 2)))
 
-        self.parent_card.setStyleSheet("opacity: 0.35; border: 1px dashed #38bdf8;")
+        self.parent_card.setStyleSheet("opacity: 0.40; border: 2px dashed #FFE600;")
         drag.exec(Qt.MoveAction)
         self.parent_card.setStyleSheet("")
 
@@ -100,9 +143,9 @@ class EmptyPinnedSlotDropFrame(QFrame):
         self.setAcceptDrops(True)
         self.setStyleSheet(f"""
             QFrame#EmptySlotFrame_{slot_num} {{
-                background: rgba(255, 255, 255, 0.02);
-                border: 1px dashed rgba(255, 255, 255, 0.12);
-                border-radius: 9px;
+                background-color: #16171D;
+                border: 2px dashed #3E4352;
+                border-radius: 8px;
             }}
         """)
 
@@ -111,9 +154,9 @@ class EmptyPinnedSlotDropFrame(QFrame):
             event.acceptProposedAction()
             self.setStyleSheet(f"""
                 QFrame#EmptySlotFrame_{self.slot_num} {{
-                    background: rgba(0, 245, 155, 0.15);
-                    border: 2px dashed #00f59b;
-                    border-radius: 9px;
+                    background-color: #252818;
+                    border: 2px dashed #FFE600;
+                    border-radius: 8px;
                 }}
             """)
         else:
@@ -122,9 +165,9 @@ class EmptyPinnedSlotDropFrame(QFrame):
     def dragLeaveEvent(self, event):
         self.setStyleSheet(f"""
             QFrame#EmptySlotFrame_{self.slot_num} {{
-                background: rgba(255, 255, 255, 0.02);
-                border: 1px dashed rgba(255, 255, 255, 0.12);
-                border-radius: 9px;
+                background-color: #16171D;
+                border: 2px dashed #3E4352;
+                border-radius: 8px;
             }}
         """)
         super().dragLeaveEvent(event)
@@ -132,9 +175,9 @@ class EmptyPinnedSlotDropFrame(QFrame):
     def dropEvent(self, event):
         self.setStyleSheet(f"""
             QFrame#EmptySlotFrame_{self.slot_num} {{
-                background: rgba(255, 255, 255, 0.02);
-                border: 1px dashed rgba(255, 255, 255, 0.12);
-                border-radius: 9px;
+                background-color: #16171D;
+                border: 2px dashed #3E4352;
+                border-radius: 8px;
             }}
         """)
         if event.mimeData().hasFormat("application/x-copypasta-main-pin"):
@@ -209,14 +252,14 @@ class ClipboardCardFrame(QFrame):
         drag.setPixmap(ghost)
         drag.setHotSpot(QPoint(min(120, ghost.width() // 4), min(30, ghost.height() // 2)))
 
-        self.setStyleSheet("opacity: 0.35; border: 1px dashed #38bdf8;")
+        self.setStyleSheet("opacity: 0.40; border: 2px dashed #FFE600;")
         drag.exec(Qt.MoveAction)
         self.setStyleSheet("")
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasFormat("application/x-copypasta-main-pin") and self.item_data.get("is_pinned"):
             event.acceptProposedAction()
-            self.setStyleSheet("border: 2px solid #00f59b; background: rgba(0, 245, 155, 0.15);")
+            self.setStyleSheet("border: 2px solid #FFE600; background-color: #2D2818;")
         else:
             super().dragEnterEvent(event)
 
@@ -275,11 +318,11 @@ class DetailedWindow(QWidget):
         self.setMinimumWidth(480)
         self.setStyleSheet(DARK_THEME_QSS)
 
-        # Drop Shadow
+        # Neobrutalist Hard Drop Shadow (Zero blur, crisp offset)
         shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(32)
-        shadow.setColor(QColor(0, 0, 0, 210))
-        shadow.setOffset(0, 10)
+        shadow.setBlurRadius(0)
+        shadow.setColor(QColor(0, 0, 0, 255))
+        shadow.setOffset(6, 6)
         self.setGraphicsEffect(shadow)
 
         # Escape shortcut closes
@@ -302,19 +345,19 @@ class DetailedWindow(QWidget):
         header.setContentsMargins(2, 0, 2, 0)
 
         title_icon = QLabel()
-        title_icon.setPixmap(AppIcons.clipboard(20, "#00f59b").pixmap(20, 20))
+        title_icon.setPixmap(AppIcons.clipboard(20, "#FFE600").pixmap(20, 20))
         title_icon.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         header.addWidget(title_icon)
 
         self.title_label = QLabel(APP_NAME)
-        self.title_label.setStyleSheet("font-size: 15px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px;")
+        self.title_label.setStyleSheet("font-size: 15px; font-weight: 800; color: #FFFFFF; letter-spacing: 0.8px;")
         self.title_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         header.addWidget(self.title_label)
 
         header.addStretch()
 
         self.screenshot_btn = QPushButton(" Snipping")
-        self.screenshot_btn.setIcon(AppIcons.camera(15, "#00f59b"))
+        self.screenshot_btn.setIcon(AppIcons.camera(15, "#FFE600"))
         self.screenshot_btn.setIconSize(QSize(15, 15))
         self.screenshot_btn.setProperty("class", "NavTab")
         self.screenshot_btn.setToolTip("Lightshot Screen Capture (PrintScreen)")
@@ -322,7 +365,7 @@ class DetailedWindow(QWidget):
         header.addWidget(self.screenshot_btn)
 
         self.pin_window_btn = QPushButton(" Keep Open")
-        self.pin_window_btn.setIcon(AppIcons.pin_icon(15, "#94a3b8"))
+        self.pin_window_btn.setIcon(AppIcons.pin_icon(15, "#CBD5E1"))
         self.pin_window_btn.setIconSize(QSize(15, 15))
         self.pin_window_btn.setProperty("class", "NavTab")
         self.pin_window_btn.setCheckable(True)
@@ -331,7 +374,7 @@ class DetailedWindow(QWidget):
         header.addWidget(self.pin_window_btn)
 
         close_btn = QPushButton()
-        close_btn.setIcon(AppIcons.close_cross(16, "#94a3b8"))
+        close_btn.setIcon(AppIcons.close_cross(16, "#CBD5E1"))
         close_btn.setIconSize(QSize(16, 16))
         close_btn.setProperty("class", "IconButton")
         close_btn.setFixedSize(26, 26)
@@ -347,7 +390,7 @@ class DetailedWindow(QWidget):
         self.search_input.setObjectName("SearchBar")
         self.search_input.setPlaceholderText("Search clippings, tags, or 2FA accounts...")
         self.search_input.setClearButtonEnabled(True)
-        self.search_input.addAction(AppIcons.search(15, "#94a3b8"), QLineEdit.LeadingPosition)
+        self.search_input.addAction(AppIcons.search(15, "#94A3B8"), QLineEdit.LeadingPosition)
         self.search_input.textChanged.connect(self._on_search_changed)
         search_box.addWidget(self.search_input)
         container_layout.addLayout(search_box)
@@ -360,7 +403,7 @@ class DetailedWindow(QWidget):
         tab_nav.setSpacing(4)
 
         self.tab_btn_all = QPushButton("Clipboard")
-        self.tab_btn_all.setIcon(AppIcons.clipboard(15, "#ffffff"))
+        self.tab_btn_all.setIcon(AppIcons.clipboard(15, "#000000"))
         self.tab_btn_all.setProperty("class", "NavTab")
         self.tab_btn_all.setCheckable(True)
         self.tab_btn_all.setChecked(True)
@@ -369,7 +412,7 @@ class DetailedWindow(QWidget):
 
         max_pins = self._get_max_pinned_slots()
         self.tab_btn_pinned = QPushButton(f"Pinned (0/{max_pins})")
-        self.tab_btn_pinned.setIcon(AppIcons.pin_icon(15, "#f59e0b", filled=True))
+        self.tab_btn_pinned.setIcon(AppIcons.pin_icon(15, "#FFE600", filled=True))
         self.tab_btn_pinned.setIconSize(QSize(15, 15))
         self.tab_btn_pinned.setProperty("class", "NavTab")
         self.tab_btn_pinned.setCheckable(True)
@@ -377,14 +420,14 @@ class DetailedWindow(QWidget):
         tab_nav.addWidget(self.tab_btn_pinned)
 
         self.tab_btn_totp = QPushButton("Authenticator")
-        self.tab_btn_totp.setIcon(AppIcons.shield_check(15, "#38bdf8"))
+        self.tab_btn_totp.setIcon(AppIcons.shield_check(15, "#00F59B"))
         self.tab_btn_totp.setProperty("class", "NavTab")
         self.tab_btn_totp.setCheckable(True)
         self.tab_btn_totp.clicked.connect(lambda: self._switch_tab(2))
         tab_nav.addWidget(self.tab_btn_totp)
 
         self.tab_btn_settings = QPushButton("Settings")
-        self.tab_btn_settings.setIcon(AppIcons.settings(15, "#94a3b8"))
+        self.tab_btn_settings.setIcon(AppIcons.settings(15, "#CBD5E1"))
         self.tab_btn_settings.setProperty("class", "NavTab")
         self.tab_btn_settings.setCheckable(True)
         self.tab_btn_settings.clicked.connect(lambda: self._switch_tab(3))
@@ -417,13 +460,26 @@ class DetailedWindow(QWidget):
         # Toast overlay for user feedback
         self.toast = Toast(self)
 
+        # Lazy loading state for recent history (high performance smooth scrolling)
+        self._all_recent_items: List[Dict[str, Any]] = []
+        self._loaded_recent_count: int = 0
+        self._recent_batch_size: int = 35
+        self.page_all.verticalScrollBar().valueChanged.connect(self._on_recent_scroll)
+
         # Initial data load
         self.refresh_clipboard_items()
 
-    def _create_scrollable_list_page(self) -> QWidget:
+    def _create_scrollable_list_page(self) -> QScrollArea:
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.viewport().setAttribute(Qt.WA_OpaquePaintEvent, True)
+
+        # Smooth scrolling filter for buttery 60-144Hz scroll
+        smooth_filter = SmoothScrollFilter(scroll, scroll)
+        scroll.viewport().installEventFilter(smooth_filter)
+
         content_widget = QWidget()
         content_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         list_layout = QVBoxLayout(content_widget)
@@ -437,7 +493,13 @@ class DetailedWindow(QWidget):
     def _create_totp_page(self) -> QWidget:
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.viewport().setAttribute(Qt.WA_OpaquePaintEvent, True)
+
+        smooth_filter = SmoothScrollFilter(scroll, scroll)
+        scroll.viewport().installEventFilter(smooth_filter)
+
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -459,10 +521,10 @@ class DetailedWindow(QWidget):
         g_hdr = QHBoxLayout()
         g_hdr.setSpacing(8)
         g_icon = QLabel()
-        g_icon.setPixmap(AppIcons.pixmap("shield_check", 16, "#38bdf8"))
+        g_icon.setPixmap(AppIcons.pixmap("shield_check", 16, "#FFE600"))
         g_hdr.addWidget(g_icon)
         g_title = QLabel("Ready to Auto-Detect 2FA Keys")
-        g_title.setStyleSheet("color: #38bdf8; font-weight: 700; font-size: 13px;")
+        g_title.setStyleSheet("color: #FFE600; font-weight: 800; font-size: 13px;")
         g_hdr.addWidget(g_title)
         g_hdr.addStretch()
         g_layout.addLayout(g_hdr)
@@ -472,7 +534,7 @@ class DetailedWindow(QWidget):
             f"{APP_NAME} auto-detects it and begins generating codes every 30s cycle right here!\n\n"
             f"You can also paste a secret key manually in the field below."
         )
-        g_body.setStyleSheet("color: #94a3b8; font-size: 12px; line-height: 1.5;")
+        g_body.setStyleSheet("color: #94A3B8; font-size: 12px; line-height: 1.5;")
         g_body.setWordWrap(True)
         g_layout.addWidget(g_body)
         self.hero_layout.addWidget(self.hero_guidance_frame)
@@ -489,34 +551,34 @@ class DetailedWindow(QWidget):
         header_row.setSpacing(8)
 
         badge_icon = QLabel()
-        badge_icon.setPixmap(AppIcons.pixmap("shield_check", 14, "#38bdf8"))
+        badge_icon.setPixmap(AppIcons.pixmap("shield_check", 14, "#00F59B"))
         header_row.addWidget(badge_icon)
 
         badge = QLabel("LIVE ACTIVE 2FA KEY")
-        badge.setStyleSheet("color: #38bdf8; font-weight: 800; font-size: 11px; letter-spacing: 0.8px;")
+        badge.setStyleSheet("color: #00F59B; font-weight: 800; font-size: 11px; letter-spacing: 0.8px;")
         header_row.addWidget(badge)
 
         self.hero_source_lbl = QLabel("Source: Auto-detected")
-        self.hero_source_lbl.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        self.hero_source_lbl.setStyleSheet("color: #94A3B8; font-size: 11px;")
         header_row.addWidget(self.hero_source_lbl)
 
         header_row.addStretch()
 
         self.hero_timer_lbl = QLabel("30s")
         self.hero_timer_lbl.setStyleSheet("""
-            background: rgba(56, 189, 248, 0.15);
-            color: #38bdf8;
-            border: 1px solid rgba(56, 189, 248, 0.35);
-            border-radius: 6px;
+            background: #000000;
+            color: #FFE600;
+            border: 1.5px solid #FFE600;
+            border-radius: 4px;
             padding: 2px 8px;
-            font-weight: 700;
+            font-weight: 800;
             font-size: 11px;
             font-family: 'Segoe UI', Arial, sans-serif;
         """)
         header_row.addWidget(self.hero_timer_lbl)
 
         clear_btn = QPushButton(" Clear")
-        clear_btn.setIcon(AppIcons.close_cross(12, "#94a3b8"))
+        clear_btn.setIcon(AppIcons.close_cross(12, "#94A3B8"))
         clear_btn.setProperty("class", "IconButton")
         clear_btn.setToolTip("Dismiss current active key")
         clear_btn.clicked.connect(self._clear_active_totp)
@@ -532,11 +594,11 @@ class DetailedWindow(QWidget):
         self.hero_code_lbl.setAlignment(Qt.AlignCenter)
         self.hero_code_lbl.setStyleSheet("""
             font-family: 'Segoe UI', Arial, sans-serif;
-            font-size: 28px;
-            font-weight: 700;
-            color: #38bdf8;
-            letter-spacing: 5px;
-            padding: 4px 0;
+            font-size: 30px;
+            font-weight: 900;
+            color: #FFE600;
+            letter-spacing: 6px;
+            padding: 6px 0;
         """)
         self.hero_code_lbl.setCursor(Qt.PointingHandCursor)
         self.hero_code_lbl.setToolTip("Click to paste directly into active input field (Ctrl+V)")
@@ -549,10 +611,10 @@ class DetailedWindow(QWidget):
         self.hero_progress = QProgressBar()
         self.hero_progress.setTextVisible(False)
         self.hero_progress.setMaximum(100)
-        self.hero_progress.setFixedHeight(4)
+        self.hero_progress.setFixedHeight(8)
         self.hero_progress.setStyleSheet("""
-            QProgressBar { border: none; background: rgba(255, 255, 255, 0.08); border-radius: 2px; }
-            QProgressBar::chunk { background: #10b981; border-radius: 2px; }
+            QProgressBar { border: 1.5px solid #000000; background: #1A1C23; border-radius: 4px; }
+            QProgressBar::chunk { background: #00F59B; border-radius: 2px; }
         """)
         a_layout.addWidget(self.hero_progress)
 
@@ -561,14 +623,14 @@ class DetailedWindow(QWidget):
         btn_row.setSpacing(10)
 
         hero_paste_btn = QPushButton(" Paste to App")
-        hero_paste_btn.setIcon(AppIcons.zap(15, "#ffffff"))
+        hero_paste_btn.setIcon(AppIcons.zap(15, "#000000"))
         hero_paste_btn.setProperty("class", "SuccessButton")
         hero_paste_btn.setToolTip("Directly insert 2FA code into active input field")
         hero_paste_btn.clicked.connect(lambda: self._copy_active_totp_code(auto_paste=True))
         btn_row.addWidget(hero_paste_btn)
 
         self.hero_copy_btn = QPushButton(" Copy Code")
-        self.hero_copy_btn.setIcon(AppIcons.copy_icon(15, "#ffffff"))
+        self.hero_copy_btn.setIcon(AppIcons.copy_icon(15, "#000000"))
         self.hero_copy_btn.setProperty("class", "PrimaryButton")
         self.hero_copy_btn.setToolTip("Copy 2FA code to clipboard")
         self.hero_copy_btn.clicked.connect(lambda: self._copy_active_totp_code(auto_paste=False))
@@ -581,25 +643,25 @@ class DetailedWindow(QWidget):
         footer_row.setContentsMargins(2, 2, 2, 0)
 
         self.hero_secret_lbl = QLabel("Secret: ••••••••")
-        self.hero_secret_lbl.setStyleSheet("color: #64748b; font-size: 11px; font-family: 'Segoe UI', Arial, sans-serif;")
+        self.hero_secret_lbl.setStyleSheet("color: #94A3B8; font-size: 11px; font-family: 'Segoe UI', Arial, sans-serif;")
         footer_row.addWidget(self.hero_secret_lbl)
 
         footer_row.addStretch()
 
         save_acc_btn = QPushButton(" Save to Permanent Accounts")
-        save_acc_btn.setIcon(AppIcons.plus(12, "#38bdf8"))
+        save_acc_btn.setIcon(AppIcons.plus(12, "#FFE600"))
         save_acc_btn.setStyleSheet("""
             QPushButton {
                 background: transparent;
                 border: none;
-                color: #38bdf8;
+                color: #FFE600;
                 font-size: 11px;
-                font-weight: 600;
+                font-weight: 700;
                 text-align: right;
                 padding: 2px 4px;
             }
             QPushButton:hover {
-                color: #7dd3fc;
+                color: #FFFFFF;
                 text-decoration: underline;
             }
         """)
@@ -618,9 +680,9 @@ class DetailedWindow(QWidget):
         manual_box = QFrame()
         manual_box.setStyleSheet("""
             QFrame {
-                background: rgba(255, 255, 255, 0.03);
-                border: 1px dashed rgba(255, 255, 255, 0.12);
-                border-radius: 9px;
+                background-color: #1A1C23;
+                border: 2px dashed #3E4352;
+                border-radius: 6px;
                 padding: 6px;
             }
         """)
@@ -632,14 +694,15 @@ class DetailedWindow(QWidget):
         self.manual_key_input.setPlaceholderText("Paste 2FA Secret Key or otpauth:// manually here...")
         self.manual_key_input.setStyleSheet("""
             QLineEdit {
-                background: rgba(255, 255, 255, 0.06);
-                border: 1px solid rgba(255, 255, 255, 0.12);
-                border-radius: 6px;
+                background-color: #121316;
+                border: 2px solid #2D3139;
+                border-radius: 4px;
                 padding: 6px 10px;
-                color: #ffffff;
+                color: #FFFFFF;
                 font-size: 12px;
+                font-weight: 600;
             }
-            QLineEdit:focus { border-color: #38bdf8; }
+            QLineEdit:focus { border: 2px solid #FFE600; }
         """)
         m_layout.addWidget(self.manual_key_input)
 
@@ -659,23 +722,8 @@ class DetailedWindow(QWidget):
         saved_hdr.addStretch()
 
         add_btn = QPushButton(" Add Account")
-        add_btn.setIcon(AppIcons.plus(12, "#38bdf8"))
-        add_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(255, 255, 255, 0.08);
-                border: 1px solid rgba(255, 255, 255, 0.15);
-                border-radius: 6px;
-                color: #38bdf8;
-                font-size: 11px;
-                font-weight: 600;
-                padding: 4px 10px;
-            }
-            QPushButton:hover {
-                background-color: rgba(56, 189, 248, 0.2);
-                border-color: #38bdf8;
-                color: #ffffff;
-            }
-        """)
+        add_btn.setIcon(AppIcons.plus(12, "#000000"))
+        add_btn.setProperty("class", "PrimaryButton")
         add_btn.setCursor(Qt.PointingHandCursor)
         add_btn.clicked.connect(self._show_add_totp_dialog)
         saved_hdr.addWidget(add_btn)
@@ -697,7 +745,13 @@ class DetailedWindow(QWidget):
     def _create_settings_page(self) -> QWidget:
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.viewport().setAttribute(Qt.WA_OpaquePaintEvent, True)
+
+        smooth_filter = SmoothScrollFilter(scroll, scroll)
+        scroll.viewport().installEventFilter(smooth_filter)
+
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(8, 6, 12, 10)
@@ -714,27 +768,28 @@ class DetailedWindow(QWidget):
         self.chk_win_v.stateChanged.connect(self._save_settings)
         box_win_v.addWidget(self.chk_win_v)
         sub_win_v = QLabel("Replaces the default Windows clipboard flyout with Mistus Copy Pasta while running. Restores Windows native clipboard instantly when exited or uninstalled.")
-        sub_win_v.setStyleSheet("color: #6ee7b7; font-size: 12px; margin-left: 24px;")
+        sub_win_v.setStyleSheet("color: #94A3B8; font-size: 12px; margin-left: 24px; font-weight: 500;")
         sub_win_v.setWordWrap(True)
         box_win_v.addWidget(sub_win_v)
 
         win_cfg_btn = QPushButton(" Open Windows Clipboard Settings")
-        win_cfg_btn.setIcon(AppIcons.settings(13, "#00f59b"))
+        win_cfg_btn.setIcon(AppIcons.settings(13, "#000000"))
         win_cfg_btn.setStyleSheet("""
             QPushButton {
-                background: rgba(0, 245, 155, 0.08);
-                border: 1px solid rgba(0, 245, 155, 0.25);
-                border-radius: 6px;
-                color: #6ee7b7;
+                background-color: #20222A;
+                border: 2px solid #000000;
+                border-radius: 4px;
+                color: #FFE600;
                 font-size: 11px;
+                font-weight: 700;
                 padding: 4px 10px;
                 margin-left: 24px;
                 max-width: 250px;
                 text-align: left;
             }
             QPushButton:hover {
-                background: rgba(0, 245, 155, 0.16);
-                color: #ffffff;
+                background-color: #FFE600;
+                color: #000000;
             }
         """)
         win_cfg_btn.setCursor(Qt.PointingHandCursor)
@@ -749,7 +804,7 @@ class DetailedWindow(QWidget):
         self.chk_custom_hotkey.stateChanged.connect(self._save_settings)
         box_custom.addWidget(self.chk_custom_hotkey)
         sub_custom = QLabel("Alternative global shortcut to summon the clipboard manager.")
-        sub_custom.setStyleSheet("color: #6ee7b7; font-size: 12px; margin-left: 24px;")
+        sub_custom.setStyleSheet("color: #94A3B8; font-size: 12px; margin-left: 24px; font-weight: 500;")
         sub_custom.setWordWrap(True)
         box_custom.addWidget(sub_custom)
         layout.addLayout(box_custom)
@@ -761,7 +816,7 @@ class DetailedWindow(QWidget):
         self.chk_screenshot.stateChanged.connect(self._save_settings)
         box_shot.addWidget(self.chk_screenshot)
         sub_shot = QLabel("Intercept PrintScreen to select screen areas, annotate with Pen, Arrow, Rect & Text, copy or save instantly.")
-        sub_shot.setStyleSheet("color: #6ee7b7; font-size: 12px; margin-left: 24px;")
+        sub_shot.setStyleSheet("color: #94A3B8; font-size: 12px; margin-left: 24px; font-weight: 500;")
         sub_shot.setWordWrap(True)
         box_shot.addWidget(sub_shot)
 
@@ -770,7 +825,7 @@ class DetailedWindow(QWidget):
         row_shot_quality.setContentsMargins(24, 6, 0, 4)
         row_shot_quality.setSpacing(10)
         lbl_shot_quality = QLabel("Screenshot Quality:")
-        lbl_shot_quality.setStyleSheet("color: #e2e8f0; font-size: 12px; font-weight: 500;")
+        lbl_shot_quality.setStyleSheet("color: #E2E8F0; font-size: 12px; font-weight: 600;")
         self.combo_shot_quality = QComboBox()
         self.combo_shot_quality.setProperty("class", "SettingsCombo")
         self.combo_shot_quality.addItems([
@@ -799,21 +854,21 @@ class DetailedWindow(QWidget):
         self.chk_floating_bar.stateChanged.connect(self._save_settings)
         box_bar.addWidget(self.chk_floating_bar)
         sub_bar = QLabel("Dockable edge acrylic bar with live 2FA chip and recent clippings.")
-        sub_bar.setStyleSheet("color: #6ee7b7; font-size: 12px; margin-left: 24px;")
+        sub_bar.setStyleSheet("color: #94A3B8; font-size: 12px; margin-left: 24px; font-weight: 500;")
         sub_bar.setWordWrap(True)
         box_bar.addWidget(sub_bar)
         layout.addLayout(box_bar)
 
         op_box = QHBoxLayout()
         op_lbl = QLabel("Floating Bar Opacity:")
-        op_lbl.setStyleSheet("color: #f0fdf4; font-size: 12px;")
+        op_lbl.setStyleSheet("color: #E2E8F0; font-size: 12px; font-weight: 600;")
         op_box.addWidget(op_lbl)
         self.opacity_slider = QSlider(Qt.Horizontal)
         self.opacity_slider.setRange(40, 100)
         current_op = int(float(self.db.get_setting("floating_bar_opacity", "0.95")) * 100)
         self.opacity_slider.setValue(current_op)
         self.opacity_val_lbl = QLabel(f"{current_op}%")
-        self.opacity_val_lbl.setStyleSheet("color: #00f59b; font-weight: 700; font-size: 12px; min-width: 38px;")
+        self.opacity_val_lbl.setStyleSheet("color: #FFE600; font-weight: 800; font-size: 12px; min-width: 38px;")
         self.opacity_slider.valueChanged.connect(self._on_opacity_slider_changed)
         op_box.addWidget(self.opacity_slider)
         op_box.addWidget(self.opacity_val_lbl)
@@ -821,7 +876,7 @@ class DetailedWindow(QWidget):
 
         bar_count_box = QHBoxLayout()
         bar_count_lbl = QLabel("Floating bar quick-paste entries:")
-        bar_count_lbl.setStyleSheet("color: #f0fdf4; font-size: 12px;")
+        bar_count_lbl.setStyleSheet("color: #E2E8F0; font-size: 12px; font-weight: 600;")
         bar_count_box.addWidget(bar_count_lbl)
         bar_count_box.addStretch()
         self.combo_bar_entries = QComboBox()
@@ -842,7 +897,7 @@ class DetailedWindow(QWidget):
         self.chk_auto_paste.stateChanged.connect(self._save_settings)
         box_paste.addWidget(self.chk_auto_paste)
         sub_paste = QLabel("Pastes directly into the active window when an item is selected.")
-        sub_paste.setStyleSheet("color: #6ee7b7; font-size: 12px; margin-left: 24px;")
+        sub_paste.setStyleSheet("color: #94A3B8; font-size: 12px; margin-left: 24px; font-weight: 500;")
         sub_paste.setWordWrap(True)
         box_paste.addWidget(sub_paste)
         layout.addLayout(box_paste)
@@ -854,14 +909,14 @@ class DetailedWindow(QWidget):
         self.chk_c_copy.stateChanged.connect(self._save_settings)
         box_c_copy.addWidget(self.chk_c_copy)
         sub_c_copy = QLabel("When text is selected on screen, show interactive copy badge and press 'C' to copy directly instead of Ctrl + C.")
-        sub_c_copy.setStyleSheet("color: #6ee7b7; font-size: 12px; margin-left: 24px;")
+        sub_c_copy.setStyleSheet("color: #94A3B8; font-size: 12px; margin-left: 24px; font-weight: 500;")
         sub_c_copy.setWordWrap(True)
         box_c_copy.addWidget(sub_c_copy)
         layout.addLayout(box_c_copy)
 
         pinned_box = QHBoxLayout()
         pinned_lbl = QLabel("Maximum pinned entries to display:")
-        pinned_lbl.setStyleSheet("color: #f0fdf4; font-size: 12px;")
+        pinned_lbl.setStyleSheet("color: #E2E8F0; font-size: 12px; font-weight: 600;")
         pinned_box.addWidget(pinned_lbl)
         pinned_box.addStretch()
         self.combo_pinned_entries = QComboBox()
@@ -873,7 +928,7 @@ class DetailedWindow(QWidget):
 
         hist_box = QHBoxLayout()
         hist_lbl = QLabel("Maximum clipboard history items:")
-        hist_lbl.setStyleSheet("color: #f0fdf4; font-size: 12px;")
+        hist_lbl.setStyleSheet("color: #E2E8F0; font-size: 12px; font-weight: 600;")
         hist_box.addWidget(hist_lbl)
         hist_box.addStretch()
         self.combo_max_history = QComboBox()
@@ -996,19 +1051,22 @@ class DetailedWindow(QWidget):
         msg.setWindowFlags(msg.windowFlags() | Qt.WindowStaysOnTopHint | Qt.Dialog)
         msg.setStyleSheet(DARK_THEME_QSS + """
             QMessageBox {
-                background-color: #0b1510;
-                border: 1px solid rgba(16, 185, 129, 0.45);
-                border-radius: 10px;
+                background-color: #121316;
+                border: 2.5px solid #000000;
+                border-bottom: 5px solid #000000;
+                border-right: 5px solid #000000;
+                border-radius: 8px;
             }
             QLabel {
-                color: #f0fdf4;
+                color: #F8FAFC;
                 font-size: 13px;
+                font-weight: 600;
             }
             QPushButton {
                 min-width: 80px;
                 padding: 6px 14px;
-                border-radius: 6px;
-                font-weight: 600;
+                border-radius: 4px;
+                font-weight: 700;
             }
         """)
         geom = self.geometry()
@@ -1027,13 +1085,37 @@ class DetailedWindow(QWidget):
             self.refresh_clipboard_items()
             self.toast.show_message(f"Cleared {count} unpinned items.")
 
-
     def _on_search_changed(self, text: str):
         idx = self.stack.currentIndex()
         if idx in (0, 1):
             self.refresh_clipboard_items()
         elif idx == 2:
             self.refresh_totp_accounts()
+
+    def _on_recent_scroll(self, value: int):
+        """Load next batch of items when scrolling near the bottom of recent clippings."""
+        bar = self.page_all.verticalScrollBar()
+        if bar.maximum() > 0 and value >= int(bar.maximum() * 0.70):
+            if self._loaded_recent_count < len(self._all_recent_items):
+                self._load_next_recent_batch()
+
+    def _load_next_recent_batch(self):
+        """Renders the next slice of items into the scroll layout incrementally without blocking."""
+        total = len(self._all_recent_items)
+        if self._loaded_recent_count >= total:
+            return
+
+        next_count = min(total, self._loaded_recent_count + self._recent_batch_size)
+        items_to_add = self._all_recent_items[self._loaded_recent_count:next_count]
+
+        container = self.page_all.widget()
+        layout = container.layout()
+
+        for item in items_to_add:
+            self._loaded_recent_count += 1
+            card = self._build_item_card(item, index=self._loaded_recent_count)
+            insert_pos = max(1, layout.count() - 1)
+            layout.insertWidget(insert_pos, card)
 
     # ================= Clipboard List Rendering =================
     def refresh_clipboard_items(self):
@@ -1056,15 +1138,13 @@ class DetailedWindow(QWidget):
             target_container = target_scroll.widget()
             layout = target_container.layout()
             self._render_pinned_slots_view(layout, pinned_items, max_pins)
-            layout.activate()
-            target_container.adjustSize()
-            QApplication.sendPostedEvents()
             return
 
         target_scroll = self.page_all
         target_container = target_scroll.widget()
         layout = target_container.layout()
 
+        # Clear existing entries except trailing stretch
         while layout.count() > 1:
             child = layout.takeAt(0)
             widget = child.widget()
@@ -1075,12 +1155,11 @@ class DetailedWindow(QWidget):
 
         if not recent_list:
             empty_lbl = QLabel("No clipboard items found." if not search_query else f"No matches for '{search_query}'.")
-            empty_lbl.setStyleSheet("color: #64748b; font-size: 13px; padding: 40px; text-align: center;")
+            empty_lbl.setStyleSheet("color: #64748B; font-size: 13px; padding: 40px; font-weight: 600;")
             empty_lbl.setAlignment(Qt.AlignCenter)
             layout.insertWidget(0, empty_lbl)
-            layout.activate()
-            target_container.adjustSize()
-            QApplication.sendPostedEvents()
+            self._all_recent_items = []
+            self._loaded_recent_count = 0
             return
 
         hdr_title = f"MATCHING CLIPPINGS ({len(recent_list)})" if search_query else f"RECENT CLIPPINGS ({len(recent_list)})"
@@ -1088,13 +1167,10 @@ class DetailedWindow(QWidget):
         hdr_recent.setProperty("class", "SectionHeader")
         layout.insertWidget(0, hdr_recent)
 
-        for idx, item in enumerate(recent_list, 1):
-            card = self._build_item_card(item, index=idx)
-            layout.insertWidget(idx, card)
-
-        layout.activate()
-        target_container.adjustSize()
-        QApplication.sendPostedEvents()
+        # High-performance incremental rendering: render initial batch immediately
+        self._all_recent_items = recent_list
+        self._loaded_recent_count = 0
+        self._load_next_recent_batch()
 
     def _render_pinned_slots_view(self, layout, pinned_items: List[Dict[str, Any]], max_pins: Optional[int] = None):
         if max_pins is None:
@@ -1136,6 +1212,7 @@ class DetailedWindow(QWidget):
         card = ClipboardCardFrame(item, in_pinned_tab=in_pinned_tab)
         card.setProperty("class", "PinnedCard" if is_pinned else "ClipboardCard")
         card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        card.setMinimumHeight(86 if content_type == "image" else 62)
         card.setCursor(Qt.PointingHandCursor)
 
         card_layout = QVBoxLayout(card)
@@ -1154,10 +1231,10 @@ class DetailedWindow(QWidget):
             pp_layout.setContentsMargins(6, 2, 7, 2)
             pp_layout.setSpacing(4)
             s_icon = QLabel()
-            s_icon.setPixmap(AppIcons.pixmap("star", 10, "#ffffff"))
+            s_icon.setPixmap(AppIcons.pixmap("star", 10, "#000000"))
             pp_layout.addWidget(s_icon)
             s_lbl = QLabel(f"PIN #{pin_slot}")
-            s_lbl.setStyleSheet("color: #ffffff; font-weight: 700; font-size: 10px; letter-spacing: 0.5px;")
+            s_lbl.setStyleSheet("color: #000000; font-weight: 800; font-size: 10px; letter-spacing: 0.5px;")
             pp_layout.addWidget(s_lbl)
             meta_row.addWidget(pin_pill)
         elif is_pinned:
@@ -1167,10 +1244,10 @@ class DetailedWindow(QWidget):
             pp_layout.setContentsMargins(6, 2, 7, 2)
             pp_layout.setSpacing(4)
             s_icon = QLabel()
-            s_icon.setPixmap(AppIcons.pixmap("star", 10, "#ffffff"))
+            s_icon.setPixmap(AppIcons.pixmap("star", 10, "#000000"))
             pp_layout.addWidget(s_icon)
             s_lbl = QLabel("PIN")
-            s_lbl.setStyleSheet("color: #ffffff; font-weight: 700; font-size: 10px; letter-spacing: 0.5px;")
+            s_lbl.setStyleSheet("color: #000000; font-weight: 800; font-size: 10px; letter-spacing: 0.5px;")
             pp_layout.addWidget(s_lbl)
             meta_row.addWidget(pin_pill)
         elif index is not None:
@@ -1180,20 +1257,20 @@ class DetailedWindow(QWidget):
             np_layout.setContentsMargins(6, 2, 6, 2)
             np_layout.setSpacing(0)
             num_lbl = QLabel(f"#{index}")
-            num_lbl.setStyleSheet("font-size: 10px; font-weight: 700; color: #38bdf8;")
+            num_lbl.setStyleSheet("font-size: 10px; font-weight: 800; color: #000000;")
             np_layout.addWidget(num_lbl)
             meta_row.addWidget(num_pill)
 
         # 2. Type Badge Pill with crisp Lucide vector icon
         type_class_map = {
-            "image": ("TypeBadgeImage", "IMAGE", AppIcons.pixmap("image", 11, "#38bdf8")),
-            "url": ("TypeBadgeUrl", "LINK", AppIcons.pixmap("link", 11, "#38bdf8")),
-            "code": ("TypeBadgeCode", "CODE", AppIcons.pixmap("code", 11, "#c084fc")),
-            "email": ("TypeBadgeEmail", "EMAIL", AppIcons.pixmap("mail", 11, "#f59e0b")),
-            "text": ("TypeBadgeText", "TEXT", AppIcons.pixmap("file_text", 11, "#94a3b8"))
+            "image": ("TypeBadgeImage", "IMAGE", AppIcons.pixmap("image", 11, "#000000")),
+            "url": ("TypeBadgeUrl", "LINK", AppIcons.pixmap("link", 11, "#000000")),
+            "code": ("TypeBadgeCode", "CODE", AppIcons.pixmap("code", 11, "#000000")),
+            "email": ("TypeBadgeEmail", "EMAIL", AppIcons.pixmap("mail", 11, "#000000")),
+            "text": ("TypeBadgeText", "TEXT", AppIcons.pixmap("file_text", 11, "#000000"))
         }
         badge_class, badge_text, badge_pix = type_class_map.get(
-            content_type, ("TypeBadgeText", "TEXT", AppIcons.pixmap("file_text", 11, "#94a3b8"))
+            content_type, ("TypeBadgeText", "TEXT", AppIcons.pixmap("file_text", 11, "#000000"))
         )
 
         type_pill = QFrame()
@@ -1205,7 +1282,7 @@ class DetailedWindow(QWidget):
         t_icon.setPixmap(badge_pix)
         tp_layout.addWidget(t_icon)
         t_lbl = QLabel(badge_text)
-        t_lbl.setStyleSheet("font-size: 10px; font-weight: 700; color: inherit;")
+        t_lbl.setStyleSheet("font-size: 10px; font-weight: 800; color: #000000;")
         tp_layout.addWidget(t_lbl)
         meta_row.addWidget(type_pill)
 
@@ -1213,7 +1290,7 @@ class DetailedWindow(QWidget):
             char_lbl = QLabel(format_file_size(item['char_count']))
         else:
             char_lbl = QLabel(f"{item['char_count']} chars")
-        char_lbl.setStyleSheet("color: #64748b; font-size: 11px;")
+        char_lbl.setStyleSheet("color: #94A3B8; font-size: 11px; font-weight: 600;")
         meta_row.addWidget(char_lbl)
 
         now = time.time()
@@ -1228,19 +1305,19 @@ class DetailedWindow(QWidget):
             time_str = f"{int(diff // 86400)}d ago"
 
         time_lbl = QLabel(time_str)
-        time_lbl.setStyleSheet("color: #64748b; font-size: 11px;")
+        time_lbl.setStyleSheet("color: #94A3B8; font-size: 11px; font-weight: 500;")
         meta_row.addWidget(time_lbl)
 
         if item.get("is_pill_pinned"):
             pill_badge = QLabel("📌 PILL BAR")
             pill_badge.setStyleSheet("""
-                background-color: rgba(245, 158, 11, 0.16);
-                border: 1px solid rgba(245, 158, 11, 0.45);
-                color: #fbbf24;
-                font-weight: 700;
+                background-color: #FFE600;
+                border: 1.5px solid #000000;
+                color: #000000;
+                font-weight: 800;
                 font-size: 10px;
-                border-radius: 5px;
-                padding: 2px 6px;
+                border-radius: 4px;
+                padding: 1px 6px;
             """)
             meta_row.addWidget(pill_badge)
 
@@ -1259,7 +1336,7 @@ class DetailedWindow(QWidget):
 
             # Reorder Up / Down buttons for pinned cards
             up_btn = QPushButton()
-            up_btn.setIcon(AppIcons.arrow_up(14, "#38bdf8"))
+            up_btn.setIcon(AppIcons.arrow_up(14, "#38BDF8"))
             up_btn.setIconSize(QSize(14, 14))
             up_btn.setProperty("class", "IconButton")
             up_btn.setFixedSize(26, 26)
@@ -1268,7 +1345,7 @@ class DetailedWindow(QWidget):
             btn_layout.addWidget(up_btn)
 
             down_btn = QPushButton()
-            down_btn.setIcon(AppIcons.arrow_down(14, "#38bdf8"))
+            down_btn.setIcon(AppIcons.arrow_down(14, "#38BDF8"))
             down_btn.setIconSize(QSize(14, 14))
             down_btn.setProperty("class", "IconButton")
             down_btn.setFixedSize(26, 26)
@@ -1278,7 +1355,7 @@ class DetailedWindow(QWidget):
 
         # Pin / Unpin button
         pin_btn = QPushButton()
-        pin_btn.setIcon(AppIcons.pin_icon(16, "#f59e0b" if is_pinned else "#94a3b8", filled=is_pinned))
+        pin_btn.setIcon(AppIcons.pin_icon(16, "#FFE600" if is_pinned else "#CBD5E1", filled=is_pinned))
         pin_btn.setIconSize(QSize(16, 16))
         pin_btn.setProperty("class", "IconButton")
         pin_btn.setFixedSize(26, 26)
@@ -1289,7 +1366,7 @@ class DetailedWindow(QWidget):
 
         # Delete button
         del_btn = QPushButton()
-        del_btn.setIcon(AppIcons.trash(16, "#f43f5e"))
+        del_btn.setIcon(AppIcons.trash(16, "#FF4757"))
         del_btn.setIconSize(QSize(16, 16))
         del_btn.setProperty("class", "IconButton")
         del_btn.setFixedSize(26, 26)
@@ -1328,25 +1405,25 @@ class DetailedWindow(QWidget):
                     thumb_lbl.setFixedSize(scaled.size())
                 else:
                     thumb_lbl.setText("🖼️ [Image]")
-                    thumb_lbl.setStyleSheet("color: #6ee7b7; padding: 10px;")
+                    thumb_lbl.setStyleSheet("color: #FFE600; padding: 10px; font-weight: 700;")
             else:
                 thumb_lbl.setText("🖼️ [Image]")
-                thumb_lbl.setStyleSheet("color: #6ee7b7; padding: 10px;")
+                thumb_lbl.setStyleSheet("color: #FFE600; padding: 10px; font-weight: 700;")
 
             img_row.addWidget(thumb_lbl)
 
             info_col = QVBoxLayout()
             info_col.setSpacing(4)
             t_lbl = QLabel(title)
-            t_lbl.setStyleSheet("color: #f1f5f9; font-weight: 600; font-size: 13px;")
+            t_lbl.setStyleSheet("color: #FFFFFF; font-weight: 700; font-size: 13px;")
             info_col.addWidget(t_lbl)
 
             d_lbl = QLabel(f"📐 {w} × {h} px  •  {fmt.upper()}")
-            d_lbl.setStyleSheet("color: #38bdf8; font-size: 11px; font-weight: 600;")
+            d_lbl.setStyleSheet("color: #38BDF8; font-size: 11px; font-weight: 700;")
             info_col.addWidget(d_lbl)
 
             action_lbl = QLabel("Click to copy & paste image")
-            action_lbl.setStyleSheet("color: #64748b; font-size: 11px; font-style: italic;")
+            action_lbl.setStyleSheet("color: #94A3B8; font-size: 11px; font-style: italic;")
             info_col.addWidget(action_lbl)
             info_col.addStretch()
 
@@ -1374,9 +1451,9 @@ class DetailedWindow(QWidget):
             wrapped_preview = " ".join(words)
 
             content_lbl.setText(wrapped_preview)
-            content_lbl.setStyleSheet("color: #f1f5f9; font-size: 13px; line-height: 1.45;")
+            content_lbl.setStyleSheet("color: #F8FAFC; font-size: 13px; line-height: 1.45;")
             content_lbl.setWordWrap(True)
-            content_lbl.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+            content_lbl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
             content_lbl.setMinimumWidth(0)
             card_layout.addWidget(content_lbl)
 
@@ -1403,59 +1480,68 @@ class DetailedWindow(QWidget):
         menu = QMenu(self)
         menu.setStyleSheet("""
             QMenu {
-                background-color: #080d0a;
-                border: 1px solid rgba(16, 185, 129, 0.25);
-                border-radius: 8px;
-                padding: 6px;
-                color: #f0fdf4;
+                background-color: #1A1C23;
+                border: 2px solid #000000;
+                border-radius: 6px;
+                padding: 4px;
+                color: #F8FAFC;
             }
             QMenu::item {
-                padding: 6px 18px;
+                padding: 6px 20px;
                 border-radius: 4px;
                 font-size: 12px;
+                font-weight: 600;
             }
             QMenu::item:selected {
-                background-color: #059669;
-                color: #ffffff;
+                background-color: #FFE600;
+                color: #000000;
+                border: 1.5px solid #000000;
+            }
+            QMenu::separator {
+                height: 2px;
+                background-color: #2D3139;
+                margin: 4px 6px;
             }
         """)
 
         is_pinned = bool(item.get("is_pinned"))
         max_pins = self._get_max_pinned_slots()
         if is_pinned:
-            act_main_pin = menu.addAction(AppIcons.pin_icon(14, "#f59e0b", filled=False), "Unpin from Main Window")
+            act_main_pin = menu.addAction(AppIcons.pin_icon(14, "#FFE600", filled=False), "Unpin from Main Window")
             act_main_pin.triggered.connect(lambda: self._toggle_pin(item))
 
-            act_up = menu.addAction(AppIcons.arrow_up(14, "#38bdf8"), "⬆️ Move Up (Main Slot)")
+            act_up = menu.addAction(AppIcons.arrow_up(14, "#38BDF8"), "⬆️ Move Up (Main Slot)")
             act_up.triggered.connect(lambda: self._move_pinned_slot(item, "up"))
 
-            act_down = menu.addAction(AppIcons.arrow_down(14, "#38bdf8"), "⬇️ Move Down (Main Slot)")
+            act_down = menu.addAction(AppIcons.arrow_down(14, "#38BDF8"), "⬇️ Move Down (Main Slot)")
             act_down.triggered.connect(lambda: self._move_pinned_slot(item, "down"))
         else:
-            act_main_pin = menu.addAction(AppIcons.pin_icon(14, "#f59e0b", filled=True), f"Pin to Main Window (max {max_pins})")
+            act_main_pin = menu.addAction(AppIcons.pin_icon(14, "#FFE600", filled=True), f"Pin to Main Window (max {max_pins})")
             act_main_pin.triggered.connect(lambda: self._toggle_pin(item))
 
         is_pill_pinned = bool(item.get("is_pill_pinned"))
         if is_pill_pinned:
-            act_pill_pin = menu.addAction(AppIcons.pin_icon(14, "#38bdf8", filled=False), "Unpin from Pill Bar")
+            act_pill_pin = menu.addAction(AppIcons.pin_icon(14, "#FFE600", filled=False), "Unpin from Pill Bar")
             act_pill_pin.triggered.connect(lambda: self._toggle_pill_pin(item))
 
-            act_pill_left = menu.addAction(AppIcons.arrow_left(14, "#38bdf8"), "⬅️ Move Left in Pill Bar")
+            act_pill_left = menu.addAction(AppIcons.arrow_left(14, "#38BDF8"), "⬅️ Move Left in Pill Bar")
             act_pill_left.triggered.connect(lambda: self._move_pill_slot(item, "left"))
 
-            act_pill_right = menu.addAction(AppIcons.arrow_right(14, "#38bdf8"), "➡️ Move Right in Pill Bar")
+            act_pill_right = menu.addAction(AppIcons.arrow_right(14, "#38BDF8"), "➡️ Move Right in Pill Bar")
             act_pill_right.triggered.connect(lambda: self._move_pill_slot(item, "right"))
         else:
-            act_pill_pin = menu.addAction(AppIcons.pin_icon(14, "#38bdf8", filled=True), "Pin to Pill Bar")
+            act_pill_pin = menu.addAction(AppIcons.pin_icon(14, "#FFE600", filled=True), "Pin to Pill Bar")
             act_pill_pin.triggered.connect(lambda: self._toggle_pill_pin(item))
 
         menu.addSeparator()
 
-        act_paste = menu.addAction(AppIcons.clipboard(14, "#00f59b"), "Copy & Paste")
+        act_paste = menu.addAction(AppIcons.clipboard(14, "#00F59B"), "Copy & Paste")
         act_paste.triggered.connect(lambda: self._select_and_paste(item))
 
-        act_del = menu.addAction(AppIcons.trash(14, "#f43f5e"), "Delete Clipping")
+        act_del = menu.addAction(AppIcons.trash(14, "#FF4757"), "Delete Clipping")
         act_del.triggered.connect(lambda: self._delete_item(item["id"]))
+
+        menu.exec(global_pos)
 
         menu.exec(global_pos)
 
@@ -1610,9 +1696,9 @@ class DetailedWindow(QWidget):
                 self.hero_timer_lbl.setText(f"{remaining}s")
             if hasattr(self, "hero_progress") and self.hero_progress:
                 self.hero_progress.setValue(int(progress * 100))
-                color = "#ef4444" if remaining <= 5 else ("#f59e0b" if remaining <= 10 else "#10b981")
+                color = "#FF4757" if remaining <= 5 else ("#FFE600" if remaining <= 10 else "#00F59B")
                 self.hero_progress.setStyleSheet(f"""
-                    QProgressBar {{ border: none; background: rgba(255, 255, 255, 0.08); border-radius: 2px; }}
+                    QProgressBar {{ border: 1.5px solid #000000; background: #1A1C23; border-radius: 4px; }}
                     QProgressBar::chunk {{ background: {color}; border-radius: 2px; }}
                 """)
         except Exception:
@@ -1720,7 +1806,7 @@ class DetailedWindow(QWidget):
         top.addStretch()
 
         del_btn = QPushButton()
-        del_btn.setIcon(AppIcons.trash(15, "#f43f5e"))
+        del_btn.setIcon(AppIcons.trash(15, "#FF4757"))
         del_btn.setIconSize(QSize(15, 15))
         del_btn.setProperty("class", "IconButton")
         del_btn.setFixedSize(24, 24)
@@ -1731,7 +1817,7 @@ class DetailedWindow(QWidget):
 
         mid = QHBoxLayout()
         code_lbl = QLabel("------")
-        code_lbl.setStyleSheet("font-family: 'Segoe UI', Arial, sans-serif; font-size: 19px; font-weight: 700; color: #67e8f9; letter-spacing: 2px;")
+        code_lbl.setStyleSheet("font-family: 'Segoe UI', Arial, sans-serif; font-size: 20px; font-weight: 800; color: #FFE600; letter-spacing: 3px;")
         code_lbl.setProperty("class", "TotpCodeLabel")
         code_lbl.setCursor(Qt.PointingHandCursor)
         code_lbl.setToolTip("Click to paste directly into active input field")
@@ -1740,14 +1826,14 @@ class DetailedWindow(QWidget):
         mid.addStretch()
 
         copy_btn = QPushButton(" Copy")
-        copy_btn.setIcon(AppIcons.copy_icon(13, "#ffffff"))
+        copy_btn.setIcon(AppIcons.copy_icon(13, "#000000"))
         copy_btn.setProperty("class", "SecondaryButton")
         copy_btn.setFixedWidth(74)
         copy_btn.clicked.connect(lambda _, a=acc: self._copy_totp_code(a, auto_paste=False))
         mid.addWidget(copy_btn)
 
         paste_btn = QPushButton(" Paste")
-        paste_btn.setIcon(AppIcons.zap(13, "#ffffff"))
+        paste_btn.setIcon(AppIcons.zap(13, "#000000"))
         paste_btn.setProperty("class", "SuccessButton")
         paste_btn.setFixedWidth(74)
         paste_btn.clicked.connect(lambda _, a=acc: self._copy_totp_code(a, auto_paste=True))
@@ -1757,7 +1843,7 @@ class DetailedWindow(QWidget):
         p_bar = QProgressBar()
         p_bar.setTextVisible(False)
         p_bar.setMaximum(100)
-        p_bar.setFixedHeight(3)
+        p_bar.setFixedHeight(6)
         layout.addWidget(p_bar)
 
         card.setProperty("secret", acc["secret"])
@@ -1783,9 +1869,9 @@ class DetailedWindow(QWidget):
             p_bar = card.findChild(QProgressBar)
             if p_bar:
                 p_bar.setValue(int(progress * 100))
-                color = "#ef4444" if remaining <= 5 else ("#f59e0b" if remaining <= 10 else "#10b981")
+                color = "#FF4757" if remaining <= 5 else ("#FFE600" if remaining <= 10 else "#00F59B")
                 p_bar.setStyleSheet(f"""
-                    QProgressBar {{ border: none; background: rgba(255, 255, 255, 0.08); border-radius: 2px; }}
+                    QProgressBar {{ border: 1.5px solid #000000; background: #141519; border-radius: 3px; }}
                     QProgressBar::chunk {{ background: {color}; border-radius: 2px; }}
                 """)
         except Exception:

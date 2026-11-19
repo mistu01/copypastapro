@@ -257,12 +257,12 @@ class FloatingBar(QWidget):
 
         # Left Drag Handle
         self.left_grip = DragHandleButton(self, "Drag to move • Right-click for options")
-        self.left_grip.setIcon(AppIcons.drag_grip(18, "#6ee7b7"))
+        self.left_grip.setIcon(AppIcons.drag_grip(18, "#FFE600"))
         self.pill_layout.addWidget(self.left_grip)
 
         # Brand / App Icon Button
         self.app_icon_btn = QPushButton()
-        self.app_icon_btn.setIcon(AppIcons.clipboard(18, "#00f59b"))
+        self.app_icon_btn.setIcon(AppIcons.clipboard(18, "#FFE600"))
         self.app_icon_btn.setFixedSize(22, 22)
         self.app_icon_btn.setProperty("class", "IconButton")
         self.app_icon_btn.setToolTip(f"{APP_NAME} • Click to expand")
@@ -278,7 +278,7 @@ class FloatingBar(QWidget):
 
         self.totp_chip = QPushButton()
         self.totp_chip.setObjectName("FloatingTotpInnerBtn")
-        self.totp_chip.setIcon(AppIcons.shield_check(14, "#00f59b"))
+        self.totp_chip.setIcon(AppIcons.shield_check(14, "#000000"))
         self.totp_chip.setIconSize(QSize(14, 14))
         self.totp_chip.setCursor(Qt.PointingHandCursor)
         self.totp_chip.clicked.connect(self._on_totp_chip_clicked)
@@ -286,7 +286,7 @@ class FloatingBar(QWidget):
 
         self.totp_close_btn = QPushButton()
         self.totp_close_btn.setObjectName("FloatingTotpDismissBtn")
-        self.totp_close_btn.setIcon(AppIcons.close_cross(12, "#6ee7b7"))
+        self.totp_close_btn.setIcon(AppIcons.close_cross(12, "#000000"))
         self.totp_close_btn.setIconSize(QSize(12, 12))
         self.totp_close_btn.setFixedSize(18, 18)
         self.totp_close_btn.setToolTip("Remove active 2FA code")
@@ -306,7 +306,7 @@ class FloatingBar(QWidget):
 
         # Minimized Label (shown only when collapsed)
         self.minimized_lbl = QLabel()
-        self.minimized_lbl.setStyleSheet("color: #6ee7b7; font-size: 11px; font-weight: 600; padding: 0 4px; font-family: 'Segoe UI', Arial, sans-serif;")
+        self.minimized_lbl.setStyleSheet("color: #FFE600; font-size: 11px; font-weight: 800; padding: 0 4px; font-family: 'Segoe UI', Arial, sans-serif;")
         self.minimized_lbl.setCursor(Qt.PointingHandCursor)
         self.minimized_lbl.mousePressEvent = self._on_minimized_lbl_mouse_press
         self.minimized_lbl.hide()
@@ -315,7 +315,7 @@ class FloatingBar(QWidget):
         # Minimized 2FA Dismiss Cross Button (shown only when collapsed with active 2FA)
         self.minimized_totp_close_btn = QPushButton()
         self.minimized_totp_close_btn.setObjectName("FloatingTotpDismissBtn")
-        self.minimized_totp_close_btn.setIcon(AppIcons.close_cross(11, "#6ee7b7"))
+        self.minimized_totp_close_btn.setIcon(AppIcons.close_cross(11, "#FFE600"))
         self.minimized_totp_close_btn.setIconSize(QSize(11, 11))
         self.minimized_totp_close_btn.setFixedSize(18, 18)
         self.minimized_totp_close_btn.setToolTip("Remove active 2FA code")
@@ -326,7 +326,7 @@ class FloatingBar(QWidget):
 
         # Expand to detailed flyout button
         self.expand_btn = QPushButton()
-        self.expand_btn.setIcon(AppIcons.expand(16, "#00f59b"))
+        self.expand_btn.setIcon(AppIcons.expand(16, "#FFE600"))
         self.expand_btn.setToolTip("Expand to detailed flyout (Win + V)")
         self.expand_btn.setProperty("class", "IconButton")
         self.expand_btn.setFixedSize(24, 24)
@@ -529,17 +529,17 @@ class FloatingBar(QWidget):
 
         # Icon based on type or pinned
         if is_pill_pinned:
-            btn.setIcon(AppIcons.pin_icon(14, "#f59e0b", filled=True))
+            btn.setIcon(AppIcons.pin_icon(14, "#000000", filled=True))
         elif is_img:
-            btn.setIcon(AppIcons.get("image", 14, "#38bdf8"))
+            btn.setIcon(AppIcons.get("image", 14, "#38BDF8"))
         elif item["content_type"] == "url":
-            btn.setIcon(AppIcons.link(14, "#38bdf8"))
+            btn.setIcon(AppIcons.link(14, "#00F59B"))
         elif item["content_type"] == "code":
-            btn.setIcon(AppIcons.code(14, "#c084fc"))
+            btn.setIcon(AppIcons.code(14, "#C084FC"))
         elif item["content_type"] == "email":
-            btn.setIcon(AppIcons.mail(14, "#f59e0b"))
+            btn.setIcon(AppIcons.mail(14, "#FB923C"))
         else:
-            btn.setIcon(AppIcons.file_text(14, "#94a3b8"))
+            btn.setIcon(AppIcons.file_text(14, "#E2E8F0"))
 
         btn.setText(f" {preview}")
 
@@ -565,11 +565,14 @@ class FloatingBar(QWidget):
         menu = QMenu(self)
         menu.setStyleSheet("""
             QMenu {
-                background-color: #080d0a;
-                border: 1px solid rgba(16, 185, 129, 0.25);
+                background-color: #121316;
+                border: 2px solid #000000;
+                border-bottom: 4px solid #000000;
+                border-right: 4px solid #000000;
                 border-radius: 8px;
                 padding: 6px;
-                color: #f0fdf4;
+                color: #FFFFFF;
+                font-weight: 700;
             }
             QMenu::item {
                 padding: 6px 18px;
@@ -577,7 +580,8 @@ class FloatingBar(QWidget):
                 font-size: 12px;
             }
             QMenu::item:selected {
-                background-color: #059669;
+                background-color: #FFE600;
+                color: #000000;
                 color: #ffffff;
             }
         """)
@@ -818,25 +822,30 @@ class FloatingBar(QWidget):
         menu = QMenu(self)
         menu.setStyleSheet("""
             QMenu {
-                background-color: #080d0a;
-                border: 1px solid rgba(16, 185, 129, 0.25);
+                background-color: #121316;
+                border: 2px solid #000000;
+                border-bottom: 4px solid #000000;
+                border-right: 4px solid #000000;
                 border-radius: 8px;
                 padding: 6px;
-                color: #ffffff;
+                color: #FFFFFF;
+                font-weight: 700;
             }
             QMenu::item {
                 padding: 6px 20px;
                 border-radius: 4px;
+                font-size: 12px;
             }
             QMenu::item:selected {
-                background-color: #059669;
+                background-color: #FFE600;
+                color: #000000;
             }
         """)
 
-        act_expand = menu.addAction(AppIcons.clipboard(16, "#00f59b"), "Open Detailed Manager (Win + V)")
+        act_expand = menu.addAction(AppIcons.clipboard(16, "#FFE600"), "Open Detailed Manager (Win + V)")
         act_expand.triggered.connect(self._on_expand_clicked)
 
-        act_shot = menu.addAction(AppIcons.camera(16, "#38bdf8"), "Take Screenshot (PrtScn)")
+        act_shot = menu.addAction(AppIcons.camera(16, "#38BDF8"), "Take Screenshot (PrtScn)")
         act_shot.triggered.connect(self.screenshot_requested.emit)
 
         menu.addSeparator()

@@ -19,24 +19,31 @@ class AddTotpDialog(QDialog):
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
         self.setStyleSheet("""
             QDialog {
-                background-color: #080d0a;
-                color: #f0fdf4;
+                background-color: #121316;
+                color: #FFFFFF;
+                border: 2.5px solid #000000;
             }
             QLabel {
-                color: #a7f3d0;
-                font-weight: 500;
+                color: #CBD5E1;
+                font-weight: 700;
                 font-size: 12px;
             }
             QLineEdit, QComboBox {
-                background-color: rgba(16, 185, 129, 0.08);
-                border: 1px solid rgba(16, 185, 129, 0.25);
+                background-color: #1A1C23;
+                border: 2px solid #000000;
+                border-bottom: 3.5px solid #000000;
+                border-right: 3.5px solid #000000;
                 border-radius: 6px;
                 padding: 7px 10px;
-                color: #ffffff;
+                color: #FFFFFF;
                 font-size: 13px;
+                font-weight: 600;
             }
             QLineEdit:focus, QComboBox:focus {
-                border-color: #00f59b;
+                border-color: #FFE600;
+                border-bottom: 3.5px solid #FFE600;
+                border-right: 3.5px solid #FFE600;
+                background-color: #20222A;
             }
         """)
 
@@ -46,7 +53,7 @@ class AddTotpDialog(QDialog):
 
         # Title
         title_label = QLabel("🔑 New Two-Factor Authenticator")
-        title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #00f59b;")
+        title_label.setStyleSheet("font-size: 16px; font-weight: 800; color: #FFE600; letter-spacing: 0.5px;")
         layout.addWidget(title_label)
 
         # Quick import URI section

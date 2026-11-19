@@ -1,4 +1,5 @@
-### What's Changed in v1.3.34
-- **Dynamic Paste Order**: Pasted entries move to the top of the main clipboard flyout (`Win + V`) without shifting the desktop pill bar.
-- **Top on Re-Copy**: Re-copying an existing clipping moves it directly to the top of both the flyout and pill bar.
-- **Always-on-Top Pill Bar**: Fixed pill bar slipping behind windows on Windows 10/11 with enforced Win32 topmost z-order.
+### What's Changed in v1.3.35
+- **Complete Neobrutalist UI Redesign**: Bold 2px-2.5px solid black borders, crisp zero-blur offset drop shadows, tactile physical button presses with downward/rightward displacement, high-contrast electric accents (Electric Lemon `#FFE600`, Neon Mint `#00F59B`, Cyber Cyan `#38BDF8`, Hot Coral `#FF4757`), geometric badges, chunky scrollbars, and modern typography across all flyouts, dialogs, badges, floating bar, and markup overlays.
+- **Buttery Smooth Jitter-Free Scrolling**: Implemented `SmoothScrollFilter` with cubic easing curves on viewports, eliminating stepped wheel jumps and micro-stuttering across 60Hz-144Hz displays.
+- **Incremental Lazy Batch Rendering**: Initial view loads instantly with 35 items and seamlessly loads additional batches on demand, preventing UI thread freezing and eliminating GPU alpha-compositing bottlenecks.
+- **Card Overlap Bug Fix**: Replaced constrained label size policies with expanding vertical policies and enforced minimum card heights to ensure zero card clipping or overlapping.
