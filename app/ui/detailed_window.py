@@ -345,7 +345,7 @@ class DetailedWindow(QWidget):
         header.setContentsMargins(2, 0, 2, 0)
 
         title_icon = QLabel()
-        title_icon.setPixmap(AppIcons.clipboard(20, "#FFE600").pixmap(20, 20))
+        title_icon.setPixmap(AppIcons.logo_pixmap(22))
         title_icon.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         header.addWidget(title_icon)
 
@@ -681,8 +681,10 @@ class DetailedWindow(QWidget):
         manual_box.setStyleSheet("""
             QFrame {
                 background-color: #1A1C23;
-                border: 2px dashed #3E4352;
-                border-radius: 6px;
+                border: 2px solid #000000;
+                border-bottom: 4px solid #000000;
+                border-right: 4px solid #000000;
+                border-radius: 8px;
                 padding: 6px;
             }
         """)
@@ -695,14 +697,20 @@ class DetailedWindow(QWidget):
         self.manual_key_input.setStyleSheet("""
             QLineEdit {
                 background-color: #121316;
-                border: 2px solid #2D3139;
-                border-radius: 4px;
+                border: 2px solid #000000;
+                border-bottom: 3px solid #000000;
+                border-right: 3px solid #000000;
+                border-radius: 6px;
                 padding: 6px 10px;
                 color: #FFFFFF;
                 font-size: 12px;
                 font-weight: 600;
             }
-            QLineEdit:focus { border: 2px solid #FFE600; }
+            QLineEdit:focus {
+                border: 2px solid #FFE600;
+                border-bottom: 3px solid #FFE600;
+                border-right: 3px solid #FFE600;
+            }
         """)
         m_layout.addWidget(self.manual_key_input)
 
@@ -1065,8 +1073,17 @@ class DetailedWindow(QWidget):
             QPushButton {
                 min-width: 80px;
                 padding: 6px 14px;
-                border-radius: 4px;
-                font-weight: 700;
+                background-color: #242731;
+                color: #F8FAFC;
+                border: 2px solid #000000;
+                border-bottom: 3.5px solid #000000;
+                border-right: 3.5px solid #000000;
+                border-radius: 6px;
+                font-weight: 800;
+            }
+            QPushButton:hover {
+                background-color: #FFE600;
+                color: #000000;
             }
         """)
         geom = self.geometry()
@@ -1480,26 +1497,29 @@ class DetailedWindow(QWidget):
         menu = QMenu(self)
         menu.setStyleSheet("""
             QMenu {
-                background-color: #1A1C23;
-                border: 2px solid #000000;
-                border-radius: 6px;
-                padding: 4px;
+                background-color: #121316;
+                border: 2.5px solid #000000;
+                border-bottom: 4px solid #000000;
+                border-right: 4px solid #000000;
+                border-radius: 8px;
+                padding: 5px;
                 color: #F8FAFC;
+                font-weight: 700;
             }
             QMenu::item {
                 padding: 6px 20px;
                 border-radius: 4px;
                 font-size: 12px;
-                font-weight: 600;
+                font-weight: 700;
             }
             QMenu::item:selected {
                 background-color: #FFE600;
                 color: #000000;
-                border: 1.5px solid #000000;
+                font-weight: 800;
             }
             QMenu::separator {
                 height: 2px;
-                background-color: #2D3139;
+                background-color: #000000;
                 margin: 4px 6px;
             }
         """)

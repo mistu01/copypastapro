@@ -311,10 +311,30 @@ class ScreenshotOverlay(QWidget):
 
         # Copy button (Primary Action, right beside Save!)
         self.copy_btn = QPushButton(" Copy")
-        self.copy_btn.setIcon(AppIcons.copy_icon(14, "#00f59b"))
+        self.copy_btn.setIcon(AppIcons.copy_icon(14, "#000000"))
         self.copy_btn.setToolTip("Copy to clipboard & history (Ctrl + C / Enter / Double-click)")
         self.copy_btn.setCursor(Qt.PointingHandCursor)
-        self.copy_btn.setStyleSheet("color: #00f59b; font-weight: bold; background-color: rgba(0, 245, 155, 0.15); border: 1px solid rgba(0, 245, 155, 0.4);")
+        self.copy_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #00F59B;
+                color: #000000;
+                font-weight: 800;
+                border: 2px solid #000000;
+                border-bottom: 3px solid #000000;
+                border-right: 3px solid #000000;
+                border-radius: 6px;
+                padding: 4px 10px;
+            }
+            QPushButton:hover {
+                background-color: #38FFB4;
+                color: #000000;
+            }
+            QPushButton:pressed {
+                border: 2px solid #000000;
+                margin-top: 1px;
+                margin-left: 1px;
+            }
+        """)
         self.copy_btn.clicked.connect(self.copy_screenshot)
         act_layout.addWidget(self.copy_btn)
 
@@ -502,62 +522,65 @@ class ScreenshotOverlay(QWidget):
         mode = getattr(self, "quality_mode", "standard")
         if mode == "standard":
             self.quality_btn.setText(" ⚡ Standard")
-            self.quality_btn.setIcon(AppIcons.zap(13, "#10b981"))
+            self.quality_btn.setIcon(AppIcons.zap(13, "#00F59B"))
             self.quality_btn.setToolTip("Quality: Standard (1:1 Screen Pixels, Lightweight - Perfect for Chat/Web Sharing)\nClick or press 'Q' / 'D' to cycle | Right-click for options")
             self.quality_btn.setStyleSheet("""
                 QPushButton#QualityBtn {
-                    background-color: rgba(16, 185, 129, 0.16);
-                    border: 1px solid rgba(16, 185, 129, 0.45);
-                    color: #10b981;
+                    background-color: #1E2027;
+                    border: 1.5px solid #000000;
+                    border-bottom: 2.5px solid #000000;
+                    border-right: 2.5px solid #000000;
+                    color: #00F59B;
                     font-size: 11px;
                     padding: 3px 8px;
-                    border-radius: 4px;
-                    font-weight: 600;
+                    border-radius: 6px;
+                    font-weight: 800;
                 }
                 QPushButton#QualityBtn:hover {
-                    background-color: rgba(16, 185, 129, 0.32);
-                    border-color: #10b981;
-                    color: #ffffff;
+                    background-color: #00F59B;
+                    color: #000000;
                 }
             """)
         elif mode == "high":
             self.quality_btn.setText(" 💎 High (300 DPI)")
-            self.quality_btn.setIcon(AppIcons.sparkles(13, "#38bdf8"))
+            self.quality_btn.setIcon(AppIcons.sparkles(13, "#38BDF8"))
             self.quality_btn.setToolTip("Quality: High (1:1 Screen Pixels + 300 DPI Print Density, Compact Size)\nClick or press 'Q' / 'D' to cycle | Right-click for options")
             self.quality_btn.setStyleSheet("""
                 QPushButton#QualityBtn {
-                    background-color: rgba(56, 189, 248, 0.16);
-                    border: 1px solid rgba(56, 189, 248, 0.5);
-                    color: #38bdf8;
+                    background-color: #1E2027;
+                    border: 1.5px solid #000000;
+                    border-bottom: 2.5px solid #000000;
+                    border-right: 2.5px solid #000000;
+                    color: #38BDF8;
                     font-size: 11px;
                     padding: 3px 8px;
-                    border-radius: 4px;
-                    font-weight: 600;
+                    border-radius: 6px;
+                    font-weight: 800;
                 }
                 QPushButton#QualityBtn:hover {
-                    background-color: rgba(56, 189, 248, 0.32);
-                    border-color: #38bdf8;
-                    color: #ffffff;
+                    background-color: #38BDF8;
+                    color: #000000;
                 }
             """)
         elif mode == "ultra":
             self.quality_btn.setText(" 🚀 Ultra HD")
-            self.quality_btn.setIcon(AppIcons.sparkles(13, "#fbbf24"))
+            self.quality_btn.setIcon(AppIcons.sparkles(13, "#FFE600"))
             self.quality_btn.setToolTip("Quality: Ultra HD (1.5x Supersampled + 300 DPI, Large Displays & 4K)\nClick or press 'Q' / 'D' to cycle | Right-click for options")
             self.quality_btn.setStyleSheet("""
                 QPushButton#QualityBtn {
-                    background-color: rgba(251, 191, 36, 0.16);
-                    border: 1px solid rgba(251, 191, 36, 0.5);
-                    color: #fbbf24;
+                    background-color: #1E2027;
+                    border: 1.5px solid #000000;
+                    border-bottom: 2.5px solid #000000;
+                    border-right: 2.5px solid #000000;
+                    color: #FFE600;
                     font-size: 11px;
                     padding: 3px 8px;
-                    border-radius: 4px;
-                    font-weight: 600;
+                    border-radius: 6px;
+                    font-weight: 800;
                 }
                 QPushButton#QualityBtn:hover {
-                    background-color: rgba(251, 191, 36, 0.32);
-                    border-color: #fbbf24;
-                    color: #ffffff;
+                    background-color: #FFE600;
+                    color: #000000;
                 }
             """)
         else:
@@ -596,21 +619,25 @@ class ScreenshotOverlay(QWidget):
         menu = QMenu(self)
         menu.setStyleSheet("""
             QMenu {
-                background-color: #0f172a;
-                border: 1px solid rgba(56, 189, 248, 0.4);
-                border-radius: 6px;
-                padding: 4px;
-                color: #e2e8f0;
+                background-color: #121316;
+                border: 2.5px solid #000000;
+                border-bottom: 4px solid #000000;
+                border-right: 4px solid #000000;
+                border-radius: 8px;
+                padding: 5px;
+                color: #F8FAFC;
                 font-family: 'Segoe UI', Arial;
                 font-size: 11px;
+                font-weight: 700;
             }
             QMenu::item {
                 padding: 6px 20px 6px 12px;
                 border-radius: 4px;
             }
             QMenu::item:selected {
-                background-color: rgba(56, 189, 248, 0.25);
-                color: #ffffff;
+                background-color: #FFE600;
+                color: #000000;
+                font-weight: 800;
             }
         """)
 

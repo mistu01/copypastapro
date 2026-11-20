@@ -264,20 +264,22 @@ QFrame.ClipboardCard:hover {
     border-right: 5px solid #000000;
 }
 
-/* Pinned Clipboard Card - Bold Amber Gold Accent */
+/* Pinned Clipboard Card - High-Contrast Neobrutalist Block with Lemon Yellow Accent */
 QFrame.PinnedCard {
-    background-color: #26221A;
-    border: 2px solid #F59E0B;
-    border-bottom: 4px solid #F59E0B;
-    border-right: 4px solid #F59E0B;
+    background-color: #211F16;
+    border: 2px solid #000000;
+    border-bottom: 4px solid #000000;
+    border-right: 4px solid #000000;
+    border-left: 5px solid #FFE600;
     border-radius: 8px;
 }
 
 QFrame.PinnedCard:hover {
-    background-color: #2F2A1F;
-    border-color: #FBBF24;
-    border-bottom: 5px solid #FBBF24;
-    border-right: 5px solid #FBBF24;
+    background-color: #2A271B;
+    border: 2px solid #000000;
+    border-bottom: 5px solid #000000;
+    border-right: 5px solid #000000;
+    border-left: 5px solid #FFF04D;
 }
 
 /* Empty Pinned Slot Drop Frame */
@@ -636,5 +638,47 @@ QSlider::handle:horizontal {
 
 QSlider::handle:horizontal:hover {
     background: #FFE600;
+}
+
+/* Global Neobrutalist Tooltips */
+QToolTip {
+    background-color: #FFE600;
+    color: #000000;
+    border: 2px solid #000000;
+    border-radius: 5px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+/* Global Neobrutalist Context Menus */
+QMenu {
+    background-color: #121316;
+    border: 2.5px solid #000000;
+    border-bottom: 4px solid #000000;
+    border-right: 4px solid #000000;
+    border-radius: 8px;
+    padding: 5px;
+    color: #F8FAFC;
+    font-weight: 700;
+}
+
+QMenu::item {
+    padding: 6px 18px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+QMenu::item:selected {
+    background-color: #FFE600;
+    color: #000000;
+    font-weight: 800;
+}
+
+QMenu::separator {
+    height: 2px;
+    background-color: #000000;
+    margin: 4px 6px;
 }
 """

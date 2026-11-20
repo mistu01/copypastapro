@@ -4,9 +4,9 @@ Provides crisp, modern, pixel-perfect SVG icons with High-DPI support and instan
 """
 
 from typing import Dict, Tuple
-from PySide6.QtGui import QIcon, QPixmap, QPainter
+from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QPen, QBrush
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtCore import Qt, QByteArray
+from PySide6.QtCore import Qt, QByteArray, QRectF
 
 LUCIDE_SVGS = {
     "clipboard": """<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>""",
@@ -180,7 +180,7 @@ class AppIcons(metaclass=AppIconsMeta):
         return cls.get("file_text", size, color)
 
     @classmethod
-    def check(cls, size: int = 14, color: str = "#10b981") -> QIcon:
+    def check(cls, size: int = 14, color: str = "#00f59b") -> QIcon:
         return cls.get("check", size, color)
 
     @classmethod
@@ -218,4 +218,60 @@ class AppIcons(metaclass=AppIconsMeta):
     @classmethod
     def arrow_right(cls, size: int = 14, color: str = "#38bdf8") -> QIcon:
         return cls.get("arrow_right", size, color, stroke_width=2.0)
+
+    @classmethod
+    def logo_pixmap(cls, size: int = 64) -> QPixmap:
+        """Render the unified Neobrutalist CopyPasta brand logo at any resolution."""
+        cache_key = ("__logo__", size, "#FFE600", 0.0)
+        if cache_key in cls._pixmap_cache:
+            return cls._pixmap_cache[cache_key]
+
+        pix = QPixmap(size, size)
+        pix.fill(Qt.transparent)
+        painter = QPainter(pix)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+
+        s = size / 64.0
+        painter.scale(s, s)
+
+        # 1. Hard-edged offset black shadow
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor("#000000"))
+        painter.drawRoundedRect(QRectF(9, 9, 49, 49), 9, 9)
+
+        # 2. Main Electric Lemon Yellow Neobrutalist tile
+        painter.setBrush(QColor("#FFE600"))
+        painter.setPen(QPen(QColor("#000000"), 3.2))
+        painter.drawRoundedRect(QRectF(4.5, 4.5, 49, 49), 9, 9)
+
+        # 3. Bold Dark Obsidian clipboard sheet inside
+        painter.setBrush(QColor("#121316"))
+        painter.setPen(QPen(QColor("#000000"), 2.6))
+        painter.drawRoundedRect(QRectF(17, 17.5, 24, 27.5), 4.5, 4.5)
+
+        # 4. Neon Mint clipboard top clasp
+        painter.setBrush(QColor("#00F59B"))
+        painter.setPen(QPen(QColor("#000000"), 2.4))
+        painter.drawRoundedRect(QRectF(22.5, 13.5, 13, 7), 2.5, 2.5)
+
+        # 5. Crisp high-contrast snippet lines inside the clipboard
+        painter.setPen(QPen(QColor("#FFE600"), 2.6, Qt.SolidLine, Qt.RoundCap))
+        painter.drawLine(22, 27, 36, 27)
+        painter.setPen(QPen(QColor("#FFFFFF"), 2.6, Qt.SolidLine, Qt.RoundCap))
+        painter.drawLine(22, 33.5, 33, 33.5)
+        painter.setPen(QPen(QColor("#00F59B"), 2.6, Qt.SolidLine, Qt.RoundCap))
+        painter.drawLine(22, 40, 29, 40)
+
+        painter.end()
+        cls._pixmap_cache[cache_key] = pix
+        return pix
+
+    @classmethod
+    def logo_icon(cls, size: int = 64) -> QIcon:
+        """Return a multi-resolution QIcon for the Neobrutalist CopyPasta brand logo."""
+        icon = QIcon()
+        for sz in (16, 20, 24, 32, 48, 64, 128):
+            icon.addPixmap(cls.logo_pixmap(sz))
+        return icon
 

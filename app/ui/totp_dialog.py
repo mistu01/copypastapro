@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from app.totp_manager import TOTPManager
+from app.styles import DARK_THEME_QSS
 
 
 class AddTotpDialog(QDialog):
@@ -17,7 +18,7 @@ class AddTotpDialog(QDialog):
         self.setWindowTitle("Add 2FA Authenticator Account")
         self.setFixedWidth(420)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
-        self.setStyleSheet("""
+        self.setStyleSheet(DARK_THEME_QSS + """
             QDialog {
                 background-color: #121316;
                 color: #FFFFFF;
@@ -65,7 +66,7 @@ class AddTotpDialog(QDialog):
 
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("color: rgba(255, 255, 255, 0.1); margin: 4px 0;")
+        sep.setStyleSheet("background-color: #000000; border: none; min-height: 2px; max-height: 2px; margin: 4px 0;")
         layout.addWidget(sep)
 
         # Issuer (Service name)
@@ -140,7 +141,7 @@ class AddTotpDialog(QDialog):
                 self.period_combo.setCurrentText(str(data["period"]))
             except Exception as e:
                 self.secret_status_label.setText(f"⚠️ Invalid URI: {e}")
-                self.secret_status_label.setStyleSheet("color: #ef4444; font-size: 11px;")
+                self.secret_status_label.setStyleSheet("color: #FF4757; font-size: 11px; font-weight: 700;")
 
     def _validate_secret_live(self, text: str):
         if not text.strip():
@@ -148,10 +149,10 @@ class AddTotpDialog(QDialog):
             return
         if TOTPManager.validate_secret(text):
             self.secret_status_label.setText("✓ Valid Base32 secret key")
-            self.secret_status_label.setStyleSheet("color: #10b981; font-size: 11px;")
+            self.secret_status_label.setStyleSheet("color: #00F59B; font-size: 11px; font-weight: 700;")
         else:
             self.secret_status_label.setText("✗ Invalid Base32 characters detected")
-            self.secret_status_label.setStyleSheet("color: #ef4444; font-size: 11px;")
+            self.secret_status_label.setStyleSheet("color: #FF4757; font-size: 11px; font-weight: 700;")
 
     def _on_save(self):
         issuer = self.issuer_input.text().strip()

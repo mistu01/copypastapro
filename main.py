@@ -34,27 +34,8 @@ from app.version import APP_NAME, APP_VERSION, APP_MUTEX_NAME
 
 
 def create_app_icon() -> QIcon:
-    """Create a crisp modern Fluent app icon with vector Lucide artwork in ZeBeyond Cyber-Emerald palette."""
-    pix = QPixmap(64, 64)
-    pix.fill(Qt.transparent)
-    painter = QPainter(pix)
-    painter.setRenderHint(QPainter.Antialiasing)
-    painter.setRenderHint(QPainter.SmoothPixmapTransform)
-
-    # ZeBeyond Cyber-Emerald gradient tile with rounded corners
-    grad = QLinearGradient(0, 0, 64, 64)
-    grad.setColorAt(0, QColor("#059669"))
-    grad.setColorAt(1, QColor("#064e3b"))
-    painter.setBrush(grad)
-    painter.setPen(QPen(QColor("#00f59b"), 1.2))
-    painter.drawRoundedRect(4, 4, 56, 56, 14, 14)
-
-    # Crisp vector Lucide clipboard icon in center
-    clip_pix = AppIcons.pixmap("clipboard", 34, "#ffffff", stroke_width=2.2)
-    painter.drawPixmap(15, 15, clip_pix)
-    painter.end()
-
-    return QIcon(pix)
+    """Create the unified Neobrutalist CopyPasta brand icon."""
+    return AppIcons.logo_icon()
 
 
 def check_single_instance() -> Optional[wintypes.HANDLE]:
@@ -147,40 +128,51 @@ class CopyPastaApp:
         self.tray_menu = QMenu()
         self.tray_menu.setStyleSheet("""
             QMenu {
-                background-color: #080d0a;
-                border: 1px solid rgba(16, 185, 129, 0.25);
+                background-color: #121316;
+                border: 2.5px solid #000000;
+                border-bottom: 4px solid #000000;
+                border-right: 4px solid #000000;
                 border-radius: 8px;
                 padding: 6px;
-                color: #f0fdf4;
+                color: #F8FAFC;
+                font-weight: 700;
             }
             QMenu::item {
                 padding: 6px 20px;
                 border-radius: 4px;
+                font-size: 12px;
+                font-weight: 700;
             }
             QMenu::item:selected {
-                background-color: #059669;
-                color: #ffffff;
+                background-color: #FFE600;
+                color: #000000;
+                font-weight: 800;
+            }
+            QMenu::separator {
+                height: 2px;
+                background-color: #000000;
+                margin: 4px 6px;
             }
         """)
 
-        act_open = self.tray_menu.addAction(AppIcons.clipboard(16, "#00f59b"), "Open Clipboard Manager (Win + V)")
+        act_open = self.tray_menu.addAction(AppIcons.clipboard(16, "#FFE600"), "Open Clipboard Manager (Win + V)")
         act_open.triggered.connect(self.toggle_detailed_window)
 
-        act_screenshot = self.tray_menu.addAction(AppIcons.camera(16, "#38bdf8"), "Take Screenshot (PrtScn)")
+        act_screenshot = self.tray_menu.addAction(AppIcons.camera(16, "#38BDF8"), "Take Screenshot (PrtScn)")
         act_screenshot.triggered.connect(self._trigger_screenshot)
 
-        self.act_toggle_bar = self.tray_menu.addAction(AppIcons.expand(16, "#34d399"), "Show Desktop Bar / Island")
+        self.act_toggle_bar = self.tray_menu.addAction(AppIcons.expand(16, "#00F59B"), "Show Desktop Bar / Island")
         self.act_toggle_bar.triggered.connect(self._toggle_floating_bar)
 
-        act_add_2fa = self.tray_menu.addAction(AppIcons.shield_check(16, "#10b981"), "Add 2FA Account...")
+        act_add_2fa = self.tray_menu.addAction(AppIcons.shield_check(16, "#00F59B"), "Add 2FA Account...")
         act_add_2fa.triggered.connect(self._open_2fa_dialog)
 
         self.tray_menu.addSeparator()
 
-        act_settings = self.tray_menu.addAction(AppIcons.settings(16, "#a7f3d0"), "Settings")
+        act_settings = self.tray_menu.addAction(AppIcons.settings(16, "#CBD5E1"), "Settings")
         act_settings.triggered.connect(self._open_settings)
 
-        act_exit = self.tray_menu.addAction(AppIcons.close_cross(16, "#f43f5e"), f"Exit {APP_NAME}")
+        act_exit = self.tray_menu.addAction(AppIcons.close_cross(16, "#FF4757"), f"Exit {APP_NAME}")
         act_exit.triggered.connect(self.quit)
 
         self.tray_menu.aboutToShow.connect(self._update_tray_menu)
