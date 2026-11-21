@@ -13,13 +13,13 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QScrollArea, QFrame, QStackedWidget,
     QProgressBar, QMessageBox, QSlider, QCheckBox, QComboBox,
-    QGraphicsDropShadowEffect, QApplication, QSizePolicy, QMenu
+    QApplication, QSizePolicy, QMenu
 )
 from PySide6.QtCore import (
     Qt, QTimer, Signal, QPoint, QSize, QMimeData,
     QPropertyAnimation, QEasingCurve, QEvent, QObject
 )
-from PySide6.QtGui import QColor, QPixmap, QKeySequence, QShortcut, QDrag, QPainter
+from PySide6.QtGui import QColor, QPixmap, QKeySequence, QShortcut, QDrag, QPainter, QPalette
 
 from app.database import Database
 from app.totp_manager import TOTPManager
@@ -318,16 +318,57 @@ class DetailedWindow(QWidget):
         self.setMinimumWidth(480)
         self.setStyleSheet(DARK_THEME_QSS)
 
-        # Neobrutalist Hard Drop Shadow (Zero blur, crisp offset)
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(0)
-        shadow.setColor(QColor(0, 0, 0, 255))
-        shadow.setOffset(6, 6)
-        self.setGraphicsEffect(shadow)
+        # Force dark palette on window hierarchy so Qt never paints light-mode white
+        pal = self.palette()
+        dark_bg = QColor("#121316")
+        pal.setColor(QPalette.Window, dark_bg)
+        pal.setColor(QPalette.Base, dark_bg)
+        pal.setColor(QPalette.AlternateBase, QColor("#1A1C23"))
+        pal.setColor(QPalette.WindowText, QColor("#F8FAFC"))
+        pal.setColor(QPalette.Text, QColor("#F8FAFC"))
+        self.setPalette(pal)
 
         # Escape shortcut closes
         esc_shortcut = QShortcut(QKeySequence(Qt.Key_Escape), self)
         esc_shortcut.activated.connect(self.hide_window)
+
+    def paintEvent(self, event):
+        """Draw crisp Neobrutalist hard-edged black drop shadow behind container without ghosting child text."""
+        if hasattr(self, "container") and self.container.isVisible():
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(0, 0, 0, 255))
+            shadow_rect = self.container.geometry().translated(6, 6)
+            painter.drawRoundedRect(shadow_rect, 12, 12)
+            painter.end()
+
+    def _configure_dark_scroll(self, scroll: QScrollArea, page_widget: QWidget):
+        """Apply consistent solid dark background and smooth scrolling to a QScrollArea page."""
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        dark_bg = QColor("#121316")
+        dark_pal = scroll.palette()
+        dark_pal.setColor(QPalette.Window, dark_bg)
+        dark_pal.setColor(QPalette.Base, dark_bg)
+
+        for target, obj_name in (
+            (scroll, "DarkScrollArea"),
+            (scroll.viewport(), "ScrollViewport"),
+            (page_widget, "ScrollPageContent"),
+        ):
+            target.setObjectName(obj_name)
+            target.setPalette(dark_pal)
+            target.setAutoFillBackground(True)
+
+        scroll.viewport().setStyleSheet("background-color: #121316; border: none;")
+        page_widget.setStyleSheet("QWidget#ScrollPageContent { background-color: #121316; border: none; }")
+
+        smooth_filter = SmoothScrollFilter(scroll, scroll)
+        scroll.viewport().installEventFilter(smooth_filter)
+        scroll.setWidget(page_widget)
 
     def _init_ui(self):
         outer_layout = QVBoxLayout(self)
@@ -437,6 +478,13 @@ class DetailedWindow(QWidget):
 
         # Stacked Pages
         self.stack = QStackedWidget()
+        stack_pal = self.stack.palette()
+        stack_pal.setColor(QPalette.Window, QColor("#121316"))
+        stack_pal.setColor(QPalette.Base, QColor("#121316"))
+        self.stack.setPalette(stack_pal)
+        self.stack.setAutoFillBackground(True)
+        self.stack.setStyleSheet("QStackedWidget { background-color: #121316; border: none; }")
+        self._update_tab_icons(0)
 
         # Page 0: All History (Pinned on top + recent history)
         self.page_all = self._create_scrollable_list_page()
@@ -471,35 +519,18 @@ class DetailedWindow(QWidget):
 
     def _create_scrollable_list_page(self) -> QScrollArea:
         scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.viewport().setAttribute(Qt.WA_OpaquePaintEvent, True)
-
-        # Smooth scrolling filter for buttery 60-144Hz scroll
-        smooth_filter = SmoothScrollFilter(scroll, scroll)
-        scroll.viewport().installEventFilter(smooth_filter)
-
         content_widget = QWidget()
         content_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         list_layout = QVBoxLayout(content_widget)
         list_layout.setContentsMargins(2, 2, 6, 2)
         list_layout.setSpacing(8)
         list_layout.addStretch()
-        scroll.setWidget(content_widget)
+        self._configure_dark_scroll(scroll, content_widget)
         return scroll
 
     # ================= 2FA TOTP Page =================
     def _create_totp_page(self) -> QWidget:
         scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.viewport().setAttribute(Qt.WA_OpaquePaintEvent, True)
-
-        smooth_filter = SmoothScrollFilter(scroll, scroll)
-        scroll.viewport().installEventFilter(smooth_filter)
-
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -746,20 +777,12 @@ class DetailedWindow(QWidget):
         layout.addWidget(self.saved_accounts_container)
 
         layout.addStretch()
-        scroll.setWidget(page)
+        self._configure_dark_scroll(scroll, page)
         return scroll
 
     # ================= Settings Page =================
     def _create_settings_page(self) -> QWidget:
         scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.viewport().setAttribute(Qt.WA_OpaquePaintEvent, True)
-
-        smooth_filter = SmoothScrollFilter(scroll, scroll)
-        scroll.viewport().installEventFilter(smooth_filter)
-
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(8, 6, 12, 10)
@@ -781,23 +804,25 @@ class DetailedWindow(QWidget):
         box_win_v.addWidget(sub_win_v)
 
         win_cfg_btn = QPushButton(" Open Windows Clipboard Settings")
-        win_cfg_btn.setIcon(AppIcons.settings(13, "#000000"))
+        win_cfg_btn.setIcon(AppIcons.settings(13, "#FFE600"))
         win_cfg_btn.setStyleSheet("""
             QPushButton {
                 background-color: #20222A;
                 border: 2px solid #000000;
-                border-radius: 4px;
+                border-bottom: 3.5px solid #000000;
+                border-right: 3.5px solid #000000;
+                border-radius: 6px;
                 color: #FFE600;
                 font-size: 11px;
-                font-weight: 700;
-                padding: 4px 10px;
+                font-weight: 800;
+                padding: 5px 12px;
                 margin-left: 24px;
                 max-width: 250px;
                 text-align: left;
             }
             QPushButton:hover {
-                background-color: #FFE600;
-                color: #000000;
+                background-color: #2D313D;
+                color: #FFF04D;
             }
         """)
         win_cfg_btn.setCursor(Qt.PointingHandCursor)
@@ -969,7 +994,7 @@ class DetailedWindow(QWidget):
         layout.addWidget(footer)
 
         layout.addStretch()
-        scroll.setWidget(page)
+        self._configure_dark_scroll(scroll, page)
         return scroll
 
     def _on_opacity_slider_changed(self, val: int):
@@ -977,11 +1002,19 @@ class DetailedWindow(QWidget):
             self.opacity_val_lbl.setText(f"{val}%")
         self._save_settings()
 
+    def _update_tab_icons(self, active_index: int):
+        """Ensure nav tab icons always maintain crisp contrast on both dark and yellow tabs."""
+        self.tab_btn_all.setIcon(AppIcons.clipboard(15, "#000000" if active_index == 0 else "#FFE600"))
+        self.tab_btn_pinned.setIcon(AppIcons.pin_icon(15, "#000000" if active_index == 1 else "#FFE600", filled=True))
+        self.tab_btn_totp.setIcon(AppIcons.shield_check(15, "#000000" if active_index == 2 else "#00F59B"))
+        self.tab_btn_settings.setIcon(AppIcons.settings(15, "#000000" if active_index == 3 else "#CBD5E1"))
+
     def _switch_tab(self, index: int):
         self.tab_btn_all.setChecked(index == 0)
         self.tab_btn_pinned.setChecked(index == 1)
         self.tab_btn_totp.setChecked(index == 2)
         self.tab_btn_settings.setChecked(index == 3)
+        self._update_tab_icons(index)
         self.stack.setCurrentIndex(index)
 
         if index in (0, 1):
@@ -1002,11 +1035,11 @@ class DetailedWindow(QWidget):
         self.keep_open = self.pin_window_btn.isChecked()
         if self.keep_open:
             self.pin_window_btn.setText(" Window Pinned")
-            self.pin_window_btn.setIcon(AppIcons.pin_icon(15, "#38bdf8", filled=True))
+            self.pin_window_btn.setIcon(AppIcons.pin_icon(15, "#000000", filled=True))
             self.toast.show_message("Window pinned: stays open across clicks")
         else:
             self.pin_window_btn.setText(" Keep Open")
-            self.pin_window_btn.setIcon(AppIcons.pin_icon(15, "#94a3b8", filled=False))
+            self.pin_window_btn.setIcon(AppIcons.pin_icon(15, "#CBD5E1", filled=False))
             self.toast.show_message("Window unpinned: auto-hides on blur")
 
     def _save_settings(self):

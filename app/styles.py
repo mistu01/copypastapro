@@ -18,10 +18,20 @@ QWidget {
 }
 
 /* Detailed Flyout Window Background */
-#DetailedWindow, #FlyoutContainer {
+#DetailedWindow {
+    background-color: transparent;
+    border: none;
+}
+
+#FlyoutContainer {
     background-color: #121316;
     border: 2.5px solid #000000;
     border-radius: 12px;
+}
+
+QStackedWidget, QScrollArea, #ScrollViewport, #ScrollPageContent {
+    background-color: #121316;
+    border: none;
 }
 
 /* Floating Bar Container - Chunky Neobrutalist Pill */
