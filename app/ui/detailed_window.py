@@ -363,9 +363,6 @@ class DetailedWindow(QWidget):
             target.setPalette(dark_pal)
             target.setAutoFillBackground(True)
 
-        scroll.viewport().setStyleSheet("background-color: #121316; border: none;")
-        page_widget.setStyleSheet("QWidget#ScrollPageContent { background-color: #121316; border: none; }")
-
         smooth_filter = SmoothScrollFilter(scroll, scroll)
         scroll.viewport().installEventFilter(smooth_filter)
         scroll.setWidget(page_widget)
@@ -483,7 +480,6 @@ class DetailedWindow(QWidget):
         stack_pal.setColor(QPalette.Base, QColor("#121316"))
         self.stack.setPalette(stack_pal)
         self.stack.setAutoFillBackground(True)
-        self.stack.setStyleSheet("QStackedWidget { background-color: #121316; border: none; }")
         self._update_tab_icons(0)
 
         # Page 0: All History (Pinned on top + recent history)

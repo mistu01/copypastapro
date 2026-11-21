@@ -29,7 +29,7 @@ QWidget {
     border-radius: 12px;
 }
 
-QStackedWidget, QScrollArea, #ScrollViewport, #ScrollPageContent {
+QStackedWidget, QScrollArea, QWidget#ScrollViewport, QWidget#ScrollPageContent {
     background-color: #121316;
     border: none;
 }
@@ -521,7 +521,7 @@ QPushButton.DragGripBtn:hover {
 /* Chunky Neobrutalist Scrollbars */
 QScrollArea {
     border: none;
-    background: transparent;
+    background-color: #121316;
 }
 
 QScrollBar:vertical {
