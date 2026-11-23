@@ -8,7 +8,7 @@ import time
 import os
 import threading
 import ctypes
-from typing import Optional
+from typing import Optional, Any
 
 try:
     import win32gui
