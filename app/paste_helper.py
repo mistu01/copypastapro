@@ -38,6 +38,7 @@ class PasteHelper:
         self.last_foreground_hwnd: Optional[int] = None
         self.last_copied_text: Optional[str] = None
         self.last_copied_image_path: Optional[str] = None
+        self.last_copied_image_hash: Optional[str] = None
         self.last_paste_time: float = 0.0
         self.our_pid = os.getpid()
         self._running = True
@@ -107,7 +108,13 @@ class PasteHelper:
                 except Exception:
                     time.sleep(0.01)
 
-    def set_clipboard_image(self, image_path: str, source_path: Optional[str] = None):
+    def set_clipboard_image(
+        self,
+        image_path: str,
+        source_path: Optional[str] = None,
+        qimg: Optional[Any] = None,
+        image_hash: Optional[str] = None,
+    ):
         """
         Set clipboard image safely in all standard Windows formats:
         1. Native QImage (Windows CF_DIB / CF_DIBV5 for Paint, Office, Photoshop)
@@ -115,6 +122,7 @@ class PasteHelper:
         3. File URL for Windows File Explorer and file drops
         """
         self.last_copied_image_path = image_path
+        self.last_copied_image_hash = image_hash
         self.last_paste_time = time.time()
 
         try:
@@ -127,32 +135,60 @@ class PasteHelper:
                 return
             clip = app.clipboard()
 
-            if not os.path.isfile(image_path):
-                return
-
-            qimg = QImage(image_path)
+            if qimg is None or qimg.isNull():
+                if not image_path or not os.path.isfile(image_path):
+                    return
+                qimg = QImage(image_path)
             if qimg.isNull():
                 return
+
+            # Normalize away premultiplied alpha so CF_DIB / CF_DIBV5 renders cleanly in all apps
+            if qimg.format() == QImage.Format_ARGB32_Premultiplied:
+                qimg = qimg.convertToFormat(
+                    QImage.Format_ARGB32 if qimg.hasAlphaChannel() else QImage.Format_RGB32
+                )
 
             mime_data = QMimeData()
 
             # 1. Native Image (CF_DIB, CF_DIBV5)
             mime_data.setImageData(qimg)
 
-            # 2. image/png raw payload for modern apps
-            ba = QByteArray()
-            buf = QBuffer(ba)
-            buf.open(QIODevice.WriteOnly)
-            qimg.save(buf, "PNG")
-            buf.close()
+            # 2. image/png raw payload for modern apps (reuse cached PNG bytes when available)
+            ba = None
+            if image_path and image_path.lower().endswith(".png") and os.path.isfile(image_path):
+                try:
+                    with open(image_path, "rb") as f:
+                        png_bytes = f.read()
+                    if png_bytes:
+                        ba = QByteArray(png_bytes)
+                except Exception:
+                    ba = None
+
+            if ba is None:
+                ba = QByteArray()
+                buf = QBuffer(ba)
+                buf.open(QIODevice.WriteOnly)
+                qimg.save(buf, "PNG")
+                buf.close()
             mime_data.setData("image/png", ba)
 
             # 3. File URL if source or cached file exists (allows pasting as file in Explorer)
             target_file = source_path if (source_path and os.path.exists(source_path)) else image_path
-            if os.path.exists(target_file):
+            if target_file and os.path.exists(target_file):
                 mime_data.setUrls([QUrl.fromLocalFile(target_file)])
 
+            # Wait briefly if another app has the Windows clipboard open before OleSetClipboard
+            if HAS_WIN32:
+                for _ in range(5):
+                    try:
+                        win32clipboard.OpenClipboard()
+                        win32clipboard.CloseClipboard()
+                        break
+                    except Exception:
+                        time.sleep(0.01)
+
             clip.setMimeData(mime_data, QClipboard.Clipboard)
+            app.processEvents()
         except Exception as e:
             print(f"[PasteHelper] Error setting clipboard image: {e}")
 

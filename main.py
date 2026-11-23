@@ -13,7 +13,7 @@ from typing import Optional
 from PySide6.QtWidgets import (
     QApplication, QSystemTrayIcon, QMenu, QMessageBox
 )
-from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen, QLinearGradient
+from PySide6.QtGui import QIcon, QPixmap, QImage, QPainter, QColor, QFont, QPen, QLinearGradient
 from PySide6.QtCore import Qt, QPoint, QTimer
 
 from app.database import Database
@@ -85,6 +85,8 @@ class CopyPastaApp:
         self.selection_badge.dismissed.connect(lambda: self.hotkey_listener.set_selection_mode(False))
 
         # Screenshot Overlay Signals
+        self.screenshot_overlay._external_clipboard_handler = True
+        self.screenshot_overlay.screenshot_image_captured.connect(self._on_screenshot_image_captured)
         self.screenshot_overlay.screenshot_captured.connect(self._on_screenshot_captured)
         self.screenshot_overlay.screenshot_saved.connect(self._on_screenshot_saved)
 
@@ -187,11 +189,15 @@ class CopyPastaApp:
         self.screenshot_overlay.capture_screen()
 
     def _on_screenshot_captured(self, pixmap: QPixmap):
-        qimg = pixmap.toImage()
+        self._on_screenshot_image_captured(pixmap.toImage())
+
+    def _on_screenshot_image_captured(self, qimg: QImage):
         meta = save_image_from_qimage(qimg)
         if meta:
-            self._last_image_hash = meta.get("hash", "")
-            self.paste_helper.set_clipboard_image(meta["image_path"])
+            img_hash = meta.get("hash", "")
+            self._last_image_hash = img_hash
+            self._last_image_time = time.time()
+            self.paste_helper.set_clipboard_image(meta["image_path"], qimg=qimg, image_hash=img_hash)
             self.db.add_image_item(meta)
             self.floating_bar.refresh_chips()
             if self.detailed_window.isVisible():

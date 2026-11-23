@@ -172,10 +172,12 @@ class TextAnnotation(BaseAnnotation):
 
 class ScreenshotOverlay(QWidget):
     screenshot_captured = Signal(QPixmap)
+    screenshot_image_captured = Signal(QImage)
     screenshot_saved = Signal(str)
     closed = Signal()
 
     HANDLE_SIZE = 8
+    DPI_96 = 3780
     DPI_300 = 11811  # 300 DPI in dots per meter: round(300 / 0.0254)
     PALETTE_COLORS = [
         ("#ef4444", "Red"),
@@ -189,6 +191,7 @@ class ScreenshotOverlay(QWidget):
     def __init__(self, parent=None, db=None):
         super().__init__(parent)
         self.db = db
+        self._external_clipboard_handler = False
         self.quality_mode = self.db.get_screenshot_quality() if self.db else "standard"
         self.dpi_mode = self.quality_mode  # backwards compatibility alias
         self.rect_fill_mode: str = "none"  # "none", "semi", "solid"
@@ -1139,7 +1142,7 @@ class ScreenshotOverlay(QWidget):
 
         sel = self.selection_rect.normalized()
         cropped = self.desktop_pixmap.copy(sel)
-        base_img = cropped.toImage().convertToFormat(QImage.Format_ARGB32_Premultiplied)
+        base_img = cropped.toImage().convertToFormat(QImage.Format_RGB32)
 
         # Screen native DPI resolution
         screen = QGuiApplication.primaryScreen()
@@ -1174,7 +1177,7 @@ class ScreenshotOverlay(QWidget):
         else:
             scaled_base = base_img
 
-        out_img = QImage(target_w, target_h, QImage.Format_ARGB32_Premultiplied)
+        out_img = QImage(target_w, target_h, QImage.Format_RGB32)
         out_img.setDotsPerMeterX(target_dots_per_m)
         out_img.setDotsPerMeterY(target_dots_per_m)
 
@@ -1208,7 +1211,12 @@ class ScreenshotOverlay(QWidget):
 
     def copy_screenshot(self):
         qimg = self.render_result_image()
+        self.close_overlay()
         if qimg and not qimg.isNull():
+            if self._external_clipboard_handler:
+                self.screenshot_image_captured.emit(qimg)
+                return
+
             clipboard = QApplication.clipboard()
             mime_data = QMimeData()
             mime_data.setImageData(qimg)
@@ -1225,7 +1233,6 @@ class ScreenshotOverlay(QWidget):
 
             pix = QPixmap.fromImage(qimg)
             self.screenshot_captured.emit(pix)
-        self.close_overlay()
 
     def save_screenshot(self):
         qimg = self.render_result_image()
